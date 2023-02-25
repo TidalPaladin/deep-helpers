@@ -69,9 +69,19 @@ def batch(request, example):
     return default_collate([deepcopy(example) for _ in range(batch_size)])
 
 
+DEFAULT_OPTIMIZER_INIT = {
+    "class_path": "torch.optim.Adam",
+    "init_args": {
+        "lr": 1e-3,
+    },
+}
+
+
 class CustomTask(Task):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        if not args and not kwargs.get("optimizer_init", {}):
+            kwargs.setdefault("optimizer_init", {}).update(DEFAULT_OPTIMIZER_INIT)
+        super().__init__(*args, **kwargs)
         self.backbone = nn.Sequential(
             nn.Conv2d(3, 16, 3),
             nn.AdaptiveAvgPool2d((1, 1)),
@@ -83,9 +93,6 @@ class CustomTask(Task):
         x = x.view(x.size(0), -1)
         x = self.head(x)
         return x
-
-    def configure_optimizers(self):
-        return torch.optim.AdamW(self.parameters(), lr=0.001)
 
     def create_metrics(self, state: State) -> tm.MetricCollection:
         return tm.MetricCollection(

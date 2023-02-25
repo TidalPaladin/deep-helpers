@@ -43,7 +43,8 @@ class CustomOptimizerMixin(ABC):
     parameters: Callable[..., Iterator[nn.Parameter]]
 
     def configure_optimizers(self) -> Dict[str, Any]:
-        assert self.optimizer_init
+        if not self.optimizer_init:
+            raise ValueError("No optimizer specified")
         result: Dict[str, Any] = {}
         optimizer = instantiate_class(self.parameters(), self.optimizer_init)
         result["optimizer"] = optimizer
@@ -168,7 +169,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
 
     def __init__(
         self,
-        optimizer_init: Dict[str, Any] = {},
+        optimizer_init: Dict[str, Any],
         lr_scheduler_init: Dict[str, Any] = {},
         lr_scheduler_interval: str = "epoch",
         lr_scheduler_monitor: str = "train/total_loss_epoch",
@@ -183,10 +184,13 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.lr_scheduler_monitor = lr_scheduler_monitor
         self.named_datasets = named_datasets
 
+        if not optimizer_init:
+            raise ValueError("optimizer_init must be provided")
+
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:
         r"""Gets a MetricCollection for a given state"""
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
     def step(
@@ -196,7 +200,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         state: State,
         metrics: Optional[tm.MetricCollection] = None,
     ) -> O:
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @classmethod
     def run_logging_loop(
