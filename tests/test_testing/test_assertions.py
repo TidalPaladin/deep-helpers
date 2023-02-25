@@ -5,11 +5,11 @@ import pytest
 import torch
 import torch.nn as nn
 from deep_helpers.testing import (
+    assert_equal,
     assert_has_gradient,
     assert_in_eval_mode,
     assert_in_training_mode,
     assert_is_int_tensor,
-    assert_tensors_close,
     assert_zero_grad,
 )
 
@@ -84,16 +84,6 @@ def test_assert_is_int_tensor(is_int):
         assert_is_int_tensor(x)
 
 
-def test_assert_tensors_close():
-    x = torch.rand(10, 10)
-    x_clone = x.clone()
-    y = torch.rand_like(x)
-
-    assert_tensors_close(x, x_clone)
-    with pytest.raises(AssertionError):
-        assert_tensors_close(x, y)
-
-
 @pytest.mark.parametrize("zeroed", [True, False])
 def test_zero_grad(zeroed):
     x = torch.rand(10, requires_grad=True)
@@ -106,3 +96,28 @@ def test_zero_grad(zeroed):
             assert_zero_grad(module)
     else:
         assert_zero_grad(module)
+
+
+@pytest.mark.parametrize(
+    "arg1,arg2,exp",
+    [
+        (torch.tensor(10), torch.tensor(10), True),
+        (torch.rand(10), torch.rand(10), False),
+        ({"foo": torch.tensor(10)}, {"foo": torch.tensor(10)}, True),
+        ({"foo": torch.rand(10)}, {"foo": torch.rand(10)}, False),
+        ({"foo": torch.tensor(10)}, {"bar": torch.tensor(10)}, False),
+        ([torch.tensor(10), torch.tensor(10)], [torch.tensor(10), torch.tensor(10)], True),
+        ([torch.tensor(10), torch.tensor(10)], [torch.tensor(10)], False),
+        ([torch.rand(10), torch.rand(10)], [torch.rand(10), torch.rand(10)], False),
+        ({"foo": torch.tensor(10), "bar": True}, {"foo": torch.tensor(10), "bar": True}, True),
+        ({"foo": torch.tensor(10), "bar": True}, {"foo": torch.tensor(10), "bar": False}, False),
+        ({"foo": torch.tensor(10), "bar": "baz"}, {"foo": torch.tensor(10), "bar": "baz"}, True),
+        ({"foo": torch.tensor(10), "bar": "baz"}, {"foo": torch.tensor(10), "bar": "notbaz"}, False),
+    ],
+)
+def test_assert_equal(arg1, arg2, exp):
+    if exp:
+        assert_equal(arg1, arg2)
+    else:
+        with pytest.raises(AssertionError):
+            assert_equal(arg1, arg2)

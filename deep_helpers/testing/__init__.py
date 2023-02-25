@@ -6,7 +6,6 @@ from .assertions import (
     assert_in_eval_mode,
     assert_in_training_mode,
     assert_is_int_tensor,
-    assert_tensors_close,
     assert_zero_grad,
 )
 from .cuda import cuda_available, handle_cuda_mark
@@ -20,7 +19,6 @@ __all__ = [
     "assert_is_int_tensor",
     "assert_in_training_mode",
     "assert_in_eval_mode",
-    "assert_tensors_close",
     "cuda_available",
     "TorchScriptTestMixin",
     "TorchScriptTraceTestMixin",

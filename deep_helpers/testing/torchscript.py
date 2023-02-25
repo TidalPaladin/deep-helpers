@@ -7,8 +7,7 @@ from typing import Any, Iterable
 
 from torch import Tensor
 from torch.jit import ScriptModule, load, save, script, trace  # type: ignore
-
-from .assertions import assert_tensors_close
+from torch.testing import assert_close  # type: ignore
 
 
 try:
@@ -89,10 +88,10 @@ class TorchScriptTraceTestMixin:
         output = model(data)
         traced_output = traced(data)
         if isinstance(output, Tensor):
-            assert_tensors_close(output, traced_output)
+            assert_close(output, traced_output)
         elif isinstance(output, Iterable):
             for out, traced_out in zip(output, traced_output):
-                assert_tensors_close(out, traced_out)
+                assert_close(out, traced_out)
         else:
             pytest.skip()
 
