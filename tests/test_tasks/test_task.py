@@ -7,6 +7,7 @@ import pytorch_lightning as pl
 import torch
 import yaml
 from deep_helpers.cli import main as cli_main
+from deep_helpers.testing import checkpoint_factory
 
 from tests.conftest import CustomTask
 
@@ -109,3 +110,24 @@ class TestTask:
             cli_main()
         except SystemExit as e:
             raise e.__context__ if e.__context__ is not None else e
+
+    @pytest.mark.parametrize("from_env", [False, True])
+    def test_create(self, mocker, task, from_env):
+        task.__class__.CHECKPOINT_ENV_VAR = "TEST_CHECKPOINT_PATH"
+        checkpoint_path = checkpoint_factory(task)
+        if from_env:
+            result = task.__class__.create()
+        else:
+            result = task.__class__.create(checkpoint_path)
+        assert isinstance(result, task.__class__)
+
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_load_checkpoint(self, mocker, task, strict):
+        spy = mocker.spy(task.__class__, "load_state_dict")
+        checkpoint_path = checkpoint_factory(task)
+        task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
+        task.setup()
+        spy.assert_called()
+        call = spy.mock_calls[0]
+        assert isinstance(call.args[-1], dict)
+        assert call.kwargs["strict"] == strict

@@ -8,6 +8,7 @@ from .assertions import (
     assert_is_int_tensor,
     assert_zero_grad,
 )
+from .checkpoint import checkpoint_factory
 from .cuda import cuda_available, handle_cuda_mark
 from .torchscript import TorchScriptTestMixin, TorchScriptTraceTestMixin
 
@@ -23,4 +24,5 @@ __all__ = [
     "TorchScriptTestMixin",
     "TorchScriptTraceTestMixin",
     "handle_cuda_mark",
+    "checkpoint_factory",
 ]
