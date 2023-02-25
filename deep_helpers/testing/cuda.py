@@ -19,7 +19,7 @@ def cuda_available():
     return True
 
 
-def handle_cuda_mark(item):
+def handle_cuda_mark(item):  # pragma: no cover
     has_cuda_mark = any(item.iter_markers(name="cuda"))
     if has_cuda_mark and not cuda_available():
         import pytest
