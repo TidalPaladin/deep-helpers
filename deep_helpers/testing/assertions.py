@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import Iterable, Union
+from typing import Any, Iterable, Sized, Union
 
 import torch
 import torch.nn as nn
@@ -12,9 +12,9 @@ def assert_has_gradient(module: Union[nn.Module, Tensor], recurse: bool = True):
     r"""Asserts that the parameters in a module have ``requires_grad=True`` and
     that the gradient exists.
     Args:
-        module (torch.nn.Module):
+        module:
             The module to inspect
-        recurse (bool, optional):
+        recurse:
             Whether or not to recursively run the same assertion on the gradients
             of child modules.
     """
@@ -32,9 +32,9 @@ def assert_zero_grad(module: nn.Module, recurse: bool = True):
     r"""Asserts that the parameters in a module have zero gradients.
     Useful for checking if `Optimizer.zero_grads()` was called.
     Args:
-        module (torch.nn.Module):
+        module:
             The module to inspect
-        recurse (bool, optional):
+        recurse:
             Whether or not to recursively run the same assertion on the gradients
             of child modules.
     """
@@ -52,7 +52,7 @@ def assert_in_training_mode(module: nn.Module):
     r"""Asserts that the module is in training mode, i.e. ``module.train()``
     was called
     Args:
-        module (torch.nn.Module):
+        module:
             The module to inspect
     """
     __tracebackhide__ = True
@@ -64,7 +64,7 @@ def assert_in_eval_mode(module: nn.Module):
     r"""Asserts that the module is in inference mode, i.e. ``module.eval()``
     was called.
     Args:
-        module (torch.nn.Module):
+        module:
             The module to inspect
     """
     __tracebackhide__ = True
@@ -72,32 +72,13 @@ def assert_in_eval_mode(module: nn.Module):
         raise AssertionError(f"module.training == {module.training}")
 
 
-def assert_tensors_close(x: Tensor, y: Tensor, *args, **kwargs):
-    r"""Asserts that the values two tensors are close. This is similar
-    to :func:`torch.allclose`, but has cleaner output when used with
-    pytest.
-    Args:
-        x (torch.Tensor):
-            The first tensor.
-        y (torch.Tensor):
-            The second tensor.
-    Additional positional or keyword args are passed to :func:`torch.allclose`.
-    """
-    __tracebackhide__ = True
-    try:
-        assert_close(x, y, *args, **kwargs)
-        return
-    except AssertionError as e:
-        raise AssertionError(str(e))
-
-
 def assert_is_int_tensor(x: Tensor):
     r"""Asserts that the values of a floating point tensor are integers.
     This test is equivalent to ``torch.allclose(x, x.round())``.
     Args:
-        x (torch.Tensor):
+        x:
             The first tensor.
-        y (torch.Tensor):
+        y:
             The second tensor.
     """
     __tracebackhide__ = True
@@ -105,15 +86,28 @@ def assert_is_int_tensor(x: Tensor):
         try:
             assert str(x) == str(x.round())
         except AssertionError as e:
-            raise AssertionError(str(e))
+            raise AssertionError(str(e)) from e
 
 
-def assert_equal(arg1, arg2, **kwargs):
+def assert_equal(arg1: Any, arg2: Any, **kwargs):
+    r"""Asserts equality of two inputs, using ``torch.assert_close`` if both inputs
+    are tensors.
+
+    Args:
+        arg1:
+            The first input.
+        arg2:
+            The second input.
+
+    Keyword Args:
+        kwargs:
+            Additional keyword arguments to pass to ``torch.assert_close``.
+    """
     __tracebackhide__ = True
     assert isinstance(arg1, type(arg2))
 
     if isinstance(arg1, Tensor):
-        assert torch.allclose(arg1, arg2, **kwargs)
+        assert_close(arg1, arg2, **kwargs)
 
     elif isinstance(arg1, dict) and isinstance(arg2, dict):
         for (k1, v1), (k2, v2) in zip(arg1.items(), arg2.items()):
@@ -121,13 +115,15 @@ def assert_equal(arg1, arg2, **kwargs):
             assert_equal(v1, v2, **kwargs)
 
     elif isinstance(arg1, str) and isinstance(arg2, str):
-        assert arg1 == arg2
+        assert arg1 == arg2, f"{arg1} != {arg2}"
 
     elif isinstance(arg1, Iterable) and isinstance(arg2, Iterable):
+        if isinstance(arg1, Sized) and isinstance(arg2, Sized):
+            assert len(arg1) == len(arg2), f"Length mismatch: {len(arg1)} != {len(arg2)}"
         for a1, a2 in zip(arg1, arg2):
             assert_equal(a1, a2, **kwargs)
     else:
-        assert arg1 == arg2
+        assert arg1 == arg2, f"{arg1} != {arg2}"
 
 
 __all__ = [
@@ -137,5 +133,4 @@ __all__ = [
     "assert_is_int_tensor",
     "assert_in_training_mode",
     "assert_in_eval_mode",
-    "assert_tensors_close",
 ]
