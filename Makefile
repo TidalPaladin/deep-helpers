@@ -1,6 +1,6 @@
 .PHONY: clean clean-env check quality style tag-version test env upload upload-test
 
-PROJECT=project
+PROJECT=deep_helpers
 PY_VER=python3.10
 QUALITY_DIRS=$(PROJECT) tests setup.py
 CLEAN_DIRS=$(PROJECT) tests
