@@ -8,8 +8,26 @@ import torch
 import yaml
 from deep_helpers.cli import main as cli_main
 
+from tests.conftest import CustomTask
+
 
 class TestTask:
+    def test_configure_optimizers(self):
+        optimizer_init = {"class_path": "torch.optim.Adam", "init_args": {"lr": 0.001}}
+        lr_scheduler_init = {
+            "class_path": "torch.optim.lr_scheduler.StepLR",
+            "init_args": {"step_size": 10, "gamma": 0.1},
+        }
+        lr_scheduler_interval = "epoch"
+        lr_scheduler_monitor = "val_loss"
+
+        task = CustomTask(optimizer_init, lr_scheduler_init, lr_scheduler_interval, lr_scheduler_monitor)
+        result = task.configure_optimizers()
+        assert isinstance(result["optimizer"], torch.optim.Adam)
+        assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
+        assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
+        assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
+
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test"])
     @pytest.mark.parametrize(
