@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
+import os
 from abc import ABC, abstractmethod
-from functools import partial
-from typing import Any, Callable, ClassVar, Dict, Generic, Iterator, Optional, TypedDict, TypeVar, Union, cast
+from pathlib import Path
+from typing import Any, Callable, ClassVar, Dict, Generic, Iterator, Optional, Type, TypedDict, TypeVar, Union, cast
 
-import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchmetrics as tm
-from lightning_utilities.core.rank_zero import rank_zero_only
+from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
-from pytorch_lightning.loggers.wandb import WandbLogger
 from torch import Tensor
 from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
@@ -107,57 +107,7 @@ class StateMixin:
             yield dm.__class__.__name__
 
 
-class WandBMixin:
-    global_step: int
-    logger: LightningLoggerBase
-    trainer: pl.Trainer
-
-    def on_train_batch_end(self, *args, **kwargs):
-        self.commit_logs(step=self.global_step)
-
-    @rank_zero_only
-    def commit_logs(self, step: Optional[int] = None) -> None:
-        if isinstance(self.logger, WandbLogger):
-            assert self.global_step >= self.logger.experiment.step
-
-            # final log call with commit=True to flush results
-            self.logger.experiment.log.log({}, commit=True, step=self.global_step)
-        # ensure all pyplot plots are closed
-        plt.close()
-
-    @rank_zero_only
-    def wrapped_log(self, items: Dict[str, Any], **kwargs):
-        target = {"trainer/global_step": self.trainer.global_step}
-        target.update(items)
-        self.logger.experiment.log(target, commit=False, **kwargs)
-
-    def setup(self, *args, **kwargs):
-        if isinstance(self.logger, WandbLogger):
-            self.patch_logger(self.logger)
-
-    def patch_logger(self, logger: WandbLogger) -> WandbLogger:
-        r""":class:`WandbLogger` doesn't expect :func:`log` to be called more than a few times per second.
-        Additionally, each call to :func:`log` will increment the logger step counter, which results
-        in the logged step value being out of sync with ``self.global_step``. This method patches
-        a :class:`WandbLogger` to log using ``self.global-step`` and never commit logs. Logs must be commited
-        manually (already implemented in :func:`on_train_batch_end`).
-        """
-        # TODO provide a way to unpatch the logger (probably needed for test/inference)
-        log = logger.experiment.log
-
-        def wrapped_log(*args, **kwargs):
-            assert self.global_step >= self.logger.experiment.step
-            f = partial(log, commit=False)
-            kwargs.pop("commit", None)
-            return f(*args, **kwargs)
-
-        # attach the original log method as an attribute of the wrapper
-        # this allows commiting logs with logger.experiment.log.log(..., commit=True)
-        wrapped_log.log = log
-
-        # apply the patch
-        logger.experiment.log = wrapped_log
-        return logger
+T = TypeVar("T", bound="Task")
 
 
 class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], ABC):
@@ -174,6 +124,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         lr_scheduler_interval: str = "epoch",
         lr_scheduler_monitor: str = "train/total_loss_epoch",
         named_datasets: bool = False,
+        checkpoint: Optional[str] = None,
+        strict_checkpoint: bool = True,
     ):
         super().__init__()
         self.state = State()
@@ -186,6 +138,16 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
 
         if not optimizer_init:
             raise ValueError("optimizer_init must be provided")
+
+        if checkpoint is not None:
+            checkpoint_path = Path(checkpoint)
+            if not checkpoint_path.is_file():
+                raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
+            rank_zero_info(f"Loading checkpoint (strict={strict_checkpoint}): {checkpoint_path}")
+            state_dict = torch.load(checkpoint_path, map_location="cpu")
+            self.load_state_dict(state_dict, strict=strict_checkpoint)
+
+        self.save_hyperparameters()
 
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:
@@ -313,3 +275,50 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             state = State(Mode.TEST, name)
             metrics = self.create_metrics(state).to(self.device)
             self.metrics.set_state(state, metrics)
+
+    @classmethod
+    def _get_checkpoint_path(cls, path: Optional[Path]) -> Path:
+        # use a specified path if one was given
+        if path is not None:
+            if not path.is_file():
+                raise FileNotFoundError(f"Checkpoint file {path} does not exist.")
+            return path
+
+        # otherwise, try to find the checkpoint using environment variables
+        elif cls.CHECKPOINT_ENV_VAR:
+            if cls.CHECKPOINT_ENV_VAR in os.environ:
+                path = Path(os.environ[cls.CHECKPOINT_ENV_VAR])
+                if not path.is_file():
+                    raise FileNotFoundError(
+                        f"Checkpoint file {path} specified by {cls.CHECKPOINT_ENV_VAR} does not exist."
+                    )
+                return path
+            else:
+                raise ValueError(
+                    "Checkpoint path not specified. "
+                    f"Either set the environment variable {cls.CHECKPOINT_ENV_VAR} or pass the --checkpoint argument."
+                )
+
+        # model doesn't have a default env var and no path was provided
+        else:
+            raise ValueError(
+                f"{cls.__name__} does not support a checkpoint env variable. Please specify a checkpoint path."
+            )
+
+    @classmethod
+    def load_from_checkpoint(cls: Type[T], checkpoint: Optional[Path]) -> T:
+        checkpoint = cls._get_checkpoint_path(checkpoint)
+        metadata = torch.load(checkpoint, map_location="cpu")
+        hparams = metadata["hyper_parameters"]
+        hparams.pop("checkpoint")
+        model = cls(**hparams)
+        model.load_state_dict(metadata["state_dict"])
+        model.eval()
+        return cast(T, model)
+
+    @classmethod
+    def create(cls, checkpoint_path: Optional[Path] = None):
+        result = cls.load_from_checkpoint(checkpoint_path)
+        result.eval()
+        logging.info(f"Loaded {cls.__name__} checkpoint from {checkpoint_path}")
+        return cast(T, result)
