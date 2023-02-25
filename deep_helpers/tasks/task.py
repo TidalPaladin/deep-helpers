@@ -135,17 +135,11 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.lr_scheduler_interval = lr_scheduler_interval
         self.lr_scheduler_monitor = lr_scheduler_monitor
         self.named_datasets = named_datasets
+        self.checkpoint = checkpoint
+        self.strict_checkpoint = strict_checkpoint
 
         if not optimizer_init:
             raise ValueError("optimizer_init must be provided")
-
-        if checkpoint is not None:
-            checkpoint_path = Path(checkpoint)
-            if not checkpoint_path.is_file():
-                raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-            rank_zero_info(f"Loading checkpoint (strict={strict_checkpoint}): {checkpoint_path}")
-            state_dict = torch.load(checkpoint_path, map_location="cpu")
-            self.load_state_dict(state_dict, strict=strict_checkpoint)
 
         self.save_hyperparameters()
 
@@ -210,6 +204,15 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                 sync_dist=True,
                 add_dataloader_idx=add_dataloader_idx,
             )
+
+    def setup(self, *args, **kwargs):
+        if self.checkpoint is not None:
+            checkpoint_path = Path(self.checkpoint)
+            if not checkpoint_path.is_file():
+                raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")  # pragma: no cover
+            rank_zero_info(f"Loading checkpoint (strict={self.strict_checkpoint}): {checkpoint_path}")
+            state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
+            self.load_state_dict(state_dict, strict=self.strict_checkpoint)
 
     def compute_total_loss(self, output: O) -> Tensor:
         loss = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))
@@ -306,19 +309,20 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             )
 
     @classmethod
-    def load_from_checkpoint(cls: Type[T], checkpoint: Optional[Path]) -> T:
+    def load_from_checkpoint(cls: Type[T], checkpoint: Optional[Path], strict: bool = True, **kwargs) -> T:
         checkpoint = cls._get_checkpoint_path(checkpoint)
         metadata = torch.load(checkpoint, map_location="cpu")
         hparams = metadata["hyper_parameters"]
         hparams.pop("checkpoint")
+        hparams.update(kwargs)
         model = cls(**hparams)
-        model.load_state_dict(metadata["state_dict"])
+        model.load_state_dict(metadata["state_dict"], strict=strict)
         model.eval()
         return cast(T, model)
 
     @classmethod
-    def create(cls, checkpoint_path: Optional[Path] = None):
-        result = cls.load_from_checkpoint(checkpoint_path)
+    def create(cls, checkpoint_path: Optional[Path] = None, **kwargs):
+        result = cls.load_from_checkpoint(checkpoint_path, **kwargs)
         result.eval()
         logging.info(f"Loaded {cls.__name__} checkpoint from {checkpoint_path}")
         return cast(T, result)
