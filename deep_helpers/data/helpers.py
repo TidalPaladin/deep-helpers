@@ -1,7 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from abc import ABC, abstractproperty
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, TypeVar, cast
+from copy import copy
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+    overload,
+    runtime_checkable,
+)
 
 from torch import Tensor
 
@@ -12,49 +26,59 @@ D = TypeVar("D", bound=Dict[str, Any])
 DatasetID = Tuple[Mode, str]
 
 
-class NamedDataModuleMixin(ABC):
-    r"""Mixin for LightningDataModules that associate names with each dataset."""
-    _lookup: Dict[Mode, List[str]]
+@dataclass
+class DatasetNames:
+    lookup: Dict[Mode, Dict[int, str]] = field(default_factory=dict)
 
-    @abstractproperty
-    def name(self) -> str:
-        ...
+    def __setitem__(self, key: Tuple[Mode, int], value: str) -> None:
+        mode, dataloader_idx = key
+        dataloader_names = self.lookup.get(mode, {})
+        dataloader_names[dataloader_idx] = value
+        self.lookup[mode] = dataloader_names
 
-    def register_name(self, mode: Mode, name: str) -> None:
-        seq = self._lookup.get(mode, [])
-        seq.append(name)
-        self._lookup[mode] = seq
+    def __contains__(self, target: Union[Mode, Tuple[Mode, Optional[int]]]) -> bool:
+        if isinstance(target, Mode):
+            return target in self.lookup
+        elif isinstance(target, tuple):
+            mode, dataloader_idx = target
+            dataloader_idx = dataloader_idx if dataloader_idx is not None else 0
+            return mode in self.lookup and dataloader_idx in self.lookup[mode]
 
-    def get_name(self, mode: Mode, dataloader_idx: Optional[int] = None) -> str:
-        if mode not in self._lookup:
-            raise KeyError(f"No names were defined for mode {mode}")
-        seq = self._lookup[mode]
+    @overload
+    def __getitem__(self, target: Mode) -> Dict[int, str]:
+        pass
 
-        # single dataloader
-        if dataloader_idx is None:
-            if len(seq) > 1:
-                raise ValueError("dataloader_idx cannot be None if more than one name is registered for a mode")
-            else:
-                return seq[0]
+    @overload
+    def __getitem__(self, target: Tuple[Mode, Optional[int]]) -> str:
+        pass
 
-        # multiple dataloader
-        else:
-            if not (0 <= dataloader_idx < len(seq)):
-                raise IndexError(f"dataloader_idx {dataloader_idx} is out of bounds for names {seq}")
-            else:
-                return seq[dataloader_idx]
+    def __getitem__(self, target: Union[Mode, Tuple[Mode, Optional[int]]]) -> Union[str, Dict[int, str]]:
+        if target not in self:
+            raise KeyError(str(target))
+
+        if isinstance(target, Mode):
+            return copy(self.lookup[target])
+        elif isinstance(target, tuple):
+            mode, dataloader_idx = target
+            dataloader_idx = dataloader_idx if dataloader_idx is not None else 0
+            return self.lookup[mode][dataloader_idx]
 
     @property
     def all_names(self) -> Iterator[str]:
-        for seq in self._lookup.values():
-            for name in seq:
+        for dataloader_names in self.lookup.values():
+            for name in dataloader_names.values():
                 yield name
 
     def names_for_mode(self, mode: Mode) -> Iterator[str]:
-        if mode not in self._lookup:
+        if mode not in self.lookup:
             return
-        for name in self._lookup[mode]:
+        for name in self.lookup[mode].values():
             yield name
+
+
+@runtime_checkable
+class SupportsDatasetNames(Protocol):
+    dataset_names: DatasetNames
 
 
 def uncollate(batch: D) -> Iterator[D]:

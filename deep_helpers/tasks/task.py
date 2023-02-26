@@ -19,7 +19,7 @@ from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
 
 # from ..callbacks.wandb import WandBCheckpointCallback
-from ..data import NamedDataModuleMixin
+from ..data import SupportsDatasetNames
 from ..structs import MetricStateCollection, Mode, State
 
 
@@ -98,8 +98,8 @@ class StateMixin:
         dm: Optional[pl.LightningDataModule] = getattr(self.trainer, "datamodule", None)
         if dm is None:
             return
-        elif isinstance(dm, NamedDataModuleMixin):
-            for name in cast(NamedDataModuleMixin, dm).names_for_mode(mode):
+        elif isinstance(dm, SupportsDatasetNames):
+            for name in cast(SupportsDatasetNames, dm).dataset_names.names_for_mode(mode):
                 yield name
         elif hasattr(dm, "name") and dm.name:
             yield dm.name

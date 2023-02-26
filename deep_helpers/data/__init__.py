@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from .helpers import NamedDataModuleMixin, uncollate
+from .helpers import DatasetNames, SupportsDatasetNames, uncollate
 
 
-__all__ = ["NamedDataModuleMixin", "uncollate"]
+__all__ = ["uncollate", "SupportsDatasetNames", "DatasetNames"]
