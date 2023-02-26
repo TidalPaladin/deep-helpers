@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 from typing import Dict, Generic, List, Optional, Sequence, Set, Tuple, TypeVar, Union, cast
 
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchmetrics as tm
@@ -72,22 +71,22 @@ class StateCollection(ABC, Generic[U]):
     @abstractmethod
     def set_state(self, state: State, val: U) -> None:
         r"""Associates a collection ``val`` with state ``State``."""
-        ...
+        raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
     def get_state(self, state: State) -> U:
         r"""Returns the collection associated with state ``State``."""
-        ...
+        raise NotImplementedError  # pragma: no cover
 
     @abstractmethod
     def remove_state(self, state: State) -> None:
         r"""Removes state ``state`` if present."""
-        ...
+        raise NotImplementedError  # pragma: no cover
 
     @abstractproperty
     def states(self) -> Set[State]:
         r"""Returns the set of registered ``State`` keys."""
-        ...
+        raise NotImplementedError  # pragma: no cover
 
     def as_dict(self) -> Dict[State, U]:
         r"""Returns this collection as a simple State -> U dictionary"""
@@ -156,9 +155,12 @@ class ModuleStateCollection(nn.ModuleDict, StateCollection[M]):
         r"""Removes state ``state`` if present."""
         if state not in self.states:
             return
-        key = self._get_key(state)
-        del self[key]
-        del self._lookup[state]
+        self._lookup.pop(state, None)
+        assert state not in self.states
+
+    def clear(self) -> None:
+        # Overridden to avoid nn.ModuleDict's clear() implementation
+        StateCollection.clear(self)
 
     @property
     def states(self) -> Set[State]:
@@ -196,7 +198,7 @@ class MetricStateCollection(ModuleStateCollection[MetricCollection]):
         if state in self.states:
             return
         elif self._collection is None:
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "Value of `collection` in init cannot be `None` to use `register`. "
                 "Either supply a `MetricCollection` in init, or manually register collections "
                 "with `set_state`"
@@ -209,34 +211,6 @@ class MetricStateCollection(ModuleStateCollection[MetricCollection]):
         collection = self.get_state(state)
         collection.update(*args, **kwargs)
         return collection
-
-    @torch.no_grad()
-    def log(
-        self,
-        state: State,
-        pl_module: pl.LightningModule,
-        on_step: bool = False,
-        on_epoch: bool = True,
-    ) -> None:
-        if state not in self.states:
-            return
-
-        collection = self.get_state(state)
-        attr = "state_metrics"
-        prefix = collection.prefix
-
-        for name, metric in collection.items():
-            metric = cast(tm.Metric, metric)
-            metric_attribute = f"{attr}.{prefix}.{name}"
-            pl_module.log(
-                name,
-                metric,
-                on_step=on_step,
-                on_epoch=on_epoch,
-                add_dataloader_idx=False,  # type: ignore
-                rank_zero_only=True,  # type: ignore
-                metric_attribute=metric_attribute,  # type: ignore
-            )
 
     def reset(
         self: T,
