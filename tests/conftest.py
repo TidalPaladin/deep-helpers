@@ -10,7 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics as tm
-from deep_helpers.structs import State
+from deep_helpers.data import DatasetNames, SupportsDatasetNames
+from deep_helpers.structs import Mode, State
 from deep_helpers.tasks import Task
 from deep_helpers.testing import handle_cuda_mark
 from pytorch_lightning.loggers.wandb import WandbLogger
@@ -136,7 +137,7 @@ class DummyDataset(Dataset):
         return copy(self.example)
 
 
-class DummyDM(pl.LightningDataModule):
+class DummyDM(pl.LightningDataModule, SupportsDatasetNames):
     def __init__(self, batch_size: int = 1, example=None):
         super().__init__()
         self.ds = DummyDataset(length=10, example=example)
@@ -154,6 +155,16 @@ class DummyDM(pl.LightningDataModule):
 
     def test_dataloader(self):
         return self._dataloader
+
+    @property
+    def dataset_names(self) -> DatasetNames:
+        names = DatasetNames()
+        names[(Mode.TRAIN, 0)] = "train_1"
+        names[(Mode.TRAIN, 1)] = "train_2"
+        names[(Mode.VAL, 0)] = "val_1"
+        names[(Mode.VAL, 1)] = "val_2"
+        names[(Mode.TEST, 0)] = "test"
+        return names
 
 
 @pytest.fixture
