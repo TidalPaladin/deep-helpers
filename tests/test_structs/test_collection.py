@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from dataclasses import dataclass, field
 from queue import PriorityQueue
-from typing import Any, Type
+from typing import Any, Dict, Set, Type
 
 import pandas as pd
 import pytest
@@ -22,6 +23,30 @@ class SimpleMetricCollection(MetricStateCollection):
             }
         )
         super().__init__(collection)
+
+
+@dataclass
+class IntCollection(StateCollection):
+    _lookup: Dict[State, int] = field(default_factory=dict)
+
+    def __hash__(self) -> int:
+        return object.__hash__(self)
+
+    @property
+    def states(self) -> Set[State]:
+        return set(self._lookup.keys())
+
+    def register(self, state: State):
+        self._lookup[state] = 0
+
+    def set_state(self, state: State, val: int) -> None:
+        self._lookup[state] = val
+
+    def get_state(self, state: State) -> int:
+        return self._lookup[state]
+
+    def remove_state(self, state: State) -> None:
+        del self._lookup[state]
 
 
 class BaseCollectionTest:
@@ -96,6 +121,19 @@ class BaseCollectionTest:
         added = col + col + other_col
         assert isinstance(other_col, self.CLS)
         assert added.states == {state, other_state}
+
+    @pytest.mark.parametrize("state", simple_states)
+    def test_clear(self, state):
+        col = self.CLS()
+        col.register(state)
+        assert state in col.states
+        col.clear()
+        assert state not in col.states
+
+
+class TestStateCollection(BaseCollectionTest):
+    CLS = IntCollection
+    VAL = 0
 
 
 class TestMetricStateCollection(BaseCollectionTest):
