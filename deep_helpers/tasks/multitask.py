@@ -63,6 +63,19 @@ class ForwardHooks(ABCMeta):
 
 
 class MultiTask(Task, metaclass=ForwardHooks):
+    r"""A multi-task wrapper around multiple contained tasks.
+
+    Args:
+        tasks: A list of task names to instantiate. Tasks are registered in the ``TASKS`` registry.
+        checkpoint: A checkpoint to load. If None, no checkpoint is loaded.
+        strict_checkpoint: Whether to enforce strict checkpoint loading.
+        cycle: Determines how tasks are handled during training. If True, tasks are cycled through
+            such that each step is a single task. If False, each step will execute all tasks.
+
+    Keyword Args:
+        Forwarded to the contained tasks.
+    """
+
     def __init__(
         self,
         tasks: List[str],
@@ -188,4 +201,11 @@ class MultiTask(Task, metaclass=ForwardHooks):
             task_output = task.test_step(batch, batch_idx)
             update(output, task_output)
         output["loss"] = self.compute_total_loss(output)
+        return output
+
+    def predict_step(self, batch: Any, batch_idx: int) -> Any:
+        output = {}
+        for name, task in self:
+            task_output = task.predict_step(batch, batch_idx)
+            output[name] = task_output
         return output
