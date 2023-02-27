@@ -14,6 +14,7 @@ import torchmetrics as tm
 from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
+from registry import Registry
 from torch import Tensor
 from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
@@ -22,6 +23,9 @@ from torchmetrics import MetricCollection
 from ..data import SupportsDatasetNames
 from ..helpers import load_checkpoint
 from ..structs import MetricStateCollection, Mode, State
+
+
+TASKS = Registry("tasks")
 
 
 class Output(TypedDict):
@@ -262,7 +266,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics = self.metrics.get(self.state)
         output = self.step(batch, batch_idx, self.state, metrics)
         _ = self.compute_total_loss(output)
-        output["loss"] = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))
+        output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
         self.run_logging_loop(self.state, self, output, metrics)
         return output
@@ -278,7 +282,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             output = self.step(batch, batch_idx, self.state, metrics)
 
         _ = self.compute_total_loss(output)
-        output["loss"] = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))
+        output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
         self.run_logging_loop(self.state, self, output, metrics)
         return output
@@ -293,7 +297,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             output = self.step(batch, batch_idx, self.state, metrics)
 
         _ = self.compute_total_loss(output)
-        output["loss"] = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))
+        output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
         self.run_logging_loop(self.state, self, output, metrics)
         return output
