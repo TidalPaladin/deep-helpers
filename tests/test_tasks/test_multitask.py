@@ -14,7 +14,7 @@ from deep_helpers.tasks import MultiTask
 @pytest.fixture
 def multitask(logger):
     optimizer_init = {"class_path": "torch.optim.Adam", "init_args": {"lr": 0.001}}
-    task = MultiTask(tasks=["custom-task"], optimizer_init=optimizer_init)
+    task = MultiTask(tasks=["custom-task", "custom-task"], optimizer_init=optimizer_init)
     trainer = pl.Trainer(logger=logger)
     task.trainer = trainer
     # NOTE: yield here to weakref to logger being gc'ed
@@ -66,8 +66,9 @@ class TestMultiTask:
         # This hook is manually subclassed in MultiTask
         multitask.setup("stage")
 
+    @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
-    @pytest.mark.parametrize("stage", ["fit", "test"])
+    @pytest.mark.parametrize("stage", ["fit", "test", "predict"])
     @pytest.mark.parametrize(
         "accelerator",
         [
@@ -75,13 +76,14 @@ class TestMultiTask:
             pytest.param("gpu", marks=pytest.mark.cuda),
         ],
     )
-    def test_run(self, multitask, default_root_dir, accelerator, datamodule, stage, named_datasets):
+    def test_run(self, multitask, default_root_dir, accelerator, datamodule, stage, named_datasets, cycle):
         if accelerator == "gpu":
             precision = "bf16" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
 
         multitask.named_datasets = named_datasets
+        multitask.cycle = cycle
         trainer = pl.Trainer(
             fast_dev_run=True,
             default_root_dir=default_root_dir,

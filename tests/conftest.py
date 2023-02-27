@@ -117,6 +117,10 @@ class CustomTask(Task):
 
         return output
 
+    @torch.no_grad()
+    def predict_step(self, batch, *args, **kwargs):
+        return {"result": self(batch["img"])}
+
 
 class DummyDataset(Dataset):
     def __init__(self, length, example=None):
@@ -155,6 +159,9 @@ class DummyDM(pl.LightningDataModule, SupportsDatasetNames):
         return self._dataloader
 
     def test_dataloader(self):
+        return self._dataloader
+
+    def predict_dataloader(self):
         return self._dataloader
 
     @property
