@@ -124,6 +124,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
 
     def teardown(self, *args, **kwargs):
         super().teardown(*args, **kwargs)
+        # Unpatch run_logging_loop
         for _, task in self:
             task.run_logging_loop = task.__class__.run_logging_loop
 
@@ -169,7 +170,9 @@ class MultiTask(Task, metaclass=ForwardHooks):
         )
 
     def create_metrics(self, *args, **kwargs):
-        raise NotImplementedError  # pragma: no cover
+        raise NotImplementedError(  # pragma: no cover
+            "MultiTask does not support `create_metrics`. Call `create_metrics` on each task individually."
+        )
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
         return self._training_step_cycle(batch, batch_idx) if self.cycle else self._training_step_all(batch, batch_idx)
