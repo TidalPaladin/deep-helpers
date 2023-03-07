@@ -126,6 +126,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         named_datasets: bool = False,
         checkpoint: Optional[str] = None,
         strict_checkpoint: bool = True,
+        log_train_metrics_interval: int = 1,
+        log_train_metrics_on_epoch: bool = False,
     ):
         super().__init__()
         self.state = State()
@@ -137,6 +139,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.named_datasets = named_datasets
         self.checkpoint = checkpoint
         self.strict_checkpoint = strict_checkpoint
+        self.log_train_metrics_interval = log_train_metrics_interval
+        self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
 
         if not optimizer_init:
             raise ValueError("optimizer_init must be provided")
@@ -181,21 +185,23 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             add_dataloader_idx=add_dataloader_idx,
         )
 
-        # TODO: it seems necessary to manually call m.compute() for stepwise train time metrics.
-        # Is there a better way to deal with this? Also, can metrics be accumulated over N training steps?
-        if source.training and metrics:
+        if source.training and metrics and source.global_step % source.log_train_metrics_interval == 0:
+            on_step = not source.log_train_metrics_on_epoch
+            on_epoch = source.log_train_metrics_on_epoch
             source.log_dict(
                 cast(dict, metrics),
-                on_step=True,
-                on_epoch=False,
+                on_step=on_step,
+                on_epoch=on_epoch,
                 prog_bar=True,
                 sync_dist=False,
                 add_dataloader_idx=add_dataloader_idx,
             )
-            for m in metrics.values():
-                if isinstance(m, tm.Metric):
-                    m.reset()
-        elif metrics:
+            # If logging on step, manually reset the metrics after computing them.
+            if on_step:
+                for m in metrics.values():
+                    if isinstance(m, tm.Metric):
+                        m.reset()
+        elif not source.training and metrics:
             source.log_dict(
                 cast(dict, metrics),
                 on_step=False,
