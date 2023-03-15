@@ -71,8 +71,21 @@ quality = [
   "isort",
 ]
 
-[tool.pytest.ini_options.markers]
-ci_skip = "skip tests in CI environment"
+[tool.pytest.ini_options]
+markers = [
+  "ci_skip",
+  "cuda",
+]
+filterwarnings = [
+  "ignore:.*Invalid value for VR.*:UserWarning",
+  "ignore:.*GPU available but not used.*:",
+  "ignore:.*Trying to infer the `batch_size`.*:",
+  "ignore:.*Consider increasing the value of the `num_workers` argument`.*:",
+  "ignore:.*Set a lower value for log_every_n_steps if you want to see logs for the training epoch.*:",
+  "ignore:.*`tensorboardX` has been removed as a dependency.*:",
+  "ignore:.*You defined a `validation_step` but have no `val_dataloader`.*:",
+]
+
 
 # Sample script config
 #[project.scripts]
