@@ -126,7 +126,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
     ):
-        super().__init__()
+        super(Task, self).__init__()
         self.state = State()
         self.metrics = MetricStateCollection()
         self.optimizer_init = optimizer_init

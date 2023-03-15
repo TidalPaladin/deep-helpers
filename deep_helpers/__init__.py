@@ -3,4 +3,4 @@
 import importlib.metadata
 
 
-__version__ = importlib.metadata.version("deep_helpers")
+__version__ = importlib.metadata.version("deep-helpers")
