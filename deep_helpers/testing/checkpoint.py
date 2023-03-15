@@ -8,8 +8,9 @@ from typing import Optional
 
 import pytorch_lightning as pl
 import torch
-from deep_helpers.tasks import Task
 from pytorch_lightning.callbacks import ModelCheckpoint
+
+from deep_helpers.tasks import Task
 
 
 def checkpoint_factory(

@@ -5,10 +5,10 @@ from dataclasses import dataclass, field
 
 import pytest
 import torchmetrics as tm
-from deep_helpers.callbacks import LoggerIntegration, MetricLoggingCallback
-from deep_helpers.structs import MetricStateCollection
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from deep_helpers.callbacks import LoggerIntegration, MetricLoggingCallback
+from deep_helpers.structs import MetricStateCollection
 from tests.test_callbacks.base_callback import BaseCallbackTest
 
 

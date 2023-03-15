@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import pytest
+
 from deep_helpers.structs.enums import Mode, State
 
 

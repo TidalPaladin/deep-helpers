@@ -6,9 +6,9 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import yaml
+
 from deep_helpers.cli import main as cli_main
 from deep_helpers.testing import checkpoint_factory
-
 from tests.conftest import CustomTask
 
 

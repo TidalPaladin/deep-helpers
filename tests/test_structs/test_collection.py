@@ -8,10 +8,11 @@ from typing import Any, Dict, Set, Type
 import pandas as pd
 import pytest
 import torch
-from deep_helpers.structs import DataFrameStateCollection, MetricStateCollection, QueueStateCollection, StateCollection
-from deep_helpers.structs.enums import Mode, State
 from torchmetrics import MetricCollection
 from torchmetrics.classification import MulticlassAccuracy, MulticlassF1Score
+
+from deep_helpers.structs import DataFrameStateCollection, MetricStateCollection, QueueStateCollection, StateCollection
+from deep_helpers.structs.enums import Mode, State
 
 
 class SimpleMetricCollection(MetricStateCollection):

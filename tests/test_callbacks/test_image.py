@@ -5,10 +5,10 @@ from typing import Dict
 
 import pytest
 import torch
-from deep_helpers.callbacks import LoggerIntegration, QueuedLoggingCallback
-from deep_helpers.structs import Mode, State
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from deep_helpers.callbacks import LoggerIntegration, QueuedLoggingCallback
+from deep_helpers.structs import Mode, State
 from tests.test_callbacks.base_callback import BaseCallbackTest
 
 

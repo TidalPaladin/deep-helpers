@@ -5,9 +5,10 @@ from pathlib import Path
 
 import pytest
 import torch
+from torch import Tensor
+
 from deep_helpers.data import DatasetNames, uncollate
 from deep_helpers.structs import Mode
-from torch import Tensor
 
 
 class TestUncollate:

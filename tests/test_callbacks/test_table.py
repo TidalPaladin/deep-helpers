@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 import pandas as pd
 import pytest
-from deep_helpers.callbacks import LoggerIntegration, TableCallback
 from pytorch_lightning.loggers.wandb import WandbLogger
 
+from deep_helpers.callbacks import LoggerIntegration, TableCallback
 from tests.test_callbacks.base_callback import BaseCallbackTest
 
 
