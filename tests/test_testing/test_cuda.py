@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import pytest
+
 from deep_helpers.testing import cuda_available
 
 

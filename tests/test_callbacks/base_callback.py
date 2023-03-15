@@ -5,10 +5,11 @@ from typing import Any, Dict
 
 import pytest
 import torch
+from pytorch_lightning.loggers import Logger as LightningLoggerBase
+
 from deep_helpers.callbacks import LoggingCallback
 from deep_helpers.structs import Mode, State
 from deep_helpers.tasks import Task
-from pytorch_lightning.loggers import Logger as LightningLoggerBase
 
 
 class BaseCallbackTest:

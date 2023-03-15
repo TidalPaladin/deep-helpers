@@ -6,9 +6,9 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import yaml
+
 from deep_helpers.cli import main as cli_main
 from deep_helpers.testing import checkpoint_factory
-
 from tests.conftest import CustomTask
 
 
@@ -40,7 +40,7 @@ class TestTask:
     )
     def test_run(self, task, default_root_dir, accelerator, datamodule, stage, named_datasets):
         if accelerator == "gpu":
-            precision = "bf16" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
+            precision = "bf16-mixed" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
 
@@ -67,7 +67,7 @@ class TestTask:
     )
     def test_cli(self, mocker, tmp_path, task, datamodule, default_root_dir, accelerator, stage):
         if accelerator == "gpu":
-            precision = "bf16" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
+            precision = "bf16-mixed" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
 

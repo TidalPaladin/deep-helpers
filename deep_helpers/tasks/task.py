@@ -77,20 +77,17 @@ class StateMixin:
     def on_train_batch_start(self, *args, **kwargs):
         self.state = self.state.update(Mode.TRAIN, None)
 
-    def on_validation_batch_start(self, batch, batch_idx, dataloader_idx: int):
+    def on_validation_batch_start(self, batch, batch_idx, dataloader_idx: int = 0):
         dataset_name = self.get_dataset_name(Mode.VAL, dataloader_idx) if self.named_datasets else None
         self.state = self.state.set_dataset(dataset_name).set_mode(Mode.VAL)
 
-    def on_test_batch_start(self, batch, batch_idx, dataloader_idx: int):
+    def on_test_batch_start(self, batch, batch_idx, dataloader_idx: int = 0):
         dataset_name = self.get_dataset_name(Mode.TEST, dataloader_idx) if self.named_datasets else None
         self.state = self.state.set_dataset(dataset_name).set_mode(Mode.TEST)
 
-    def get_dataset_name(self, mode: Mode, dataloader_idx: Optional[int] = None) -> Optional[str]:
+    def get_dataset_name(self, mode: Mode, dataloader_idx: int) -> Optional[str]:
         names = list(self.dataset_names(mode))
-        if dataloader_idx is None:
-            return names[0] if names else None
-        else:
-            return names[dataloader_idx]
+        return names[dataloader_idx] if names else None
 
     def dataset_names(self, mode: Mode) -> Iterator[str]:
         if self.trainer is None:
