@@ -43,7 +43,13 @@ def checkpoint_factory(
 
     cb = ModelCheckpoint(path.parent, path.name)
     trainer = pl.Trainer(
-        default_root_dir=root, callbacks=[cb], max_steps=1, limit_val_batches=1, logger=[], num_sanity_val_steps=0
+        default_root_dir=root,
+        accelerator="cpu",
+        callbacks=[cb],
+        max_steps=1,
+        limit_val_batches=1,
+        logger=[],
+        num_sanity_val_steps=0,
     )
     # We need to call fit to initialize the model and save a checkpoint, but it is missing data which is an error.
     # Silently ignore the error, but ensure the checkpoint was created before returning.
