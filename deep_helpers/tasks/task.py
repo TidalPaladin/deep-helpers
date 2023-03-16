@@ -164,10 +164,13 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics: Optional[tm.MetricCollection] = None,
         add_dataloader_idx: bool = False,
     ) -> None:
+        # Manually log loss, PyTorch Lightning 1.9 doesn't do this for us anymore
+        source.log("loss", cast(Dict[str, Any], output)["loss"], on_step=True, on_epoch=False, prog_bar=True)
+
         # Log things placed into `output` under the key `log` unless they are metrics.
         # Metrics require special handling and will be logged separately.
         scalars_to_log = {
-            f"{str(source.state)}/{k}": v for k, v in output.get("log", {}).items() if not isinstance(v, tm.Metric)
+            f"{state.with_postfix(k)}": v for k, v in output.get("log", {}).items() if not isinstance(v, tm.Metric)
         }
         source.log_dict(
             scalars_to_log,
@@ -178,31 +181,67 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             add_dataloader_idx=add_dataloader_idx,
         )
 
+        # Log metrics
         if source.training and metrics and source.global_step % source.log_train_metrics_interval == 0:
+            cls._log_train_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
+        elif not source.training and metrics:
+            cls._log_inference_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
+
+    @classmethod
+    def _log_inference_metrics(
+        cls,
+        state: State,
+        source: "Task",
+        metrics: tm.MetricCollection,
+        **kwargs,
+    ) -> None:
+        metrics_to_log = (
+            cast(
+                Dict[str, Tensor],
+                {f"{state.with_postfix(k)}": cast(tm.Metric, v).compute() for k, v in metrics.items()},
+            )
+            if metrics
+            else None
+        )
+
+        if metrics_to_log:
+            source.log_dict(
+                metrics_to_log,
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                sync_dist=True,
+                **kwargs,
+            )
+
+    @classmethod
+    def _log_train_metrics(
+        cls,
+        state: State,
+        source: "Task",
+        metrics: tm.MetricCollection,
+        **kwargs,
+    ) -> None:
+        metrics_to_log = (
+            cast(
+                Dict[str, Tensor],
+                {f"{state.with_postfix(k)}": cast(tm.Metric, v).compute() for k, v in metrics.items()},
+            )
+            if metrics
+            else None
+        )
+
+        if metrics_to_log:
             on_step = not source.log_train_metrics_on_epoch
             on_epoch = source.log_train_metrics_on_epoch
             source.log_dict(
-                cast(dict, metrics),
-                on_step=on_step,
-                on_epoch=on_epoch,
-                prog_bar=True,
-                sync_dist=False,
-                add_dataloader_idx=add_dataloader_idx,
+                metrics_to_log, on_step=on_step, on_epoch=on_epoch, prog_bar=False, sync_dist=False, **kwargs
             )
             # If logging on step, manually reset the metrics after computing them.
             if on_step:
                 for m in metrics.values():
                     if isinstance(m, tm.Metric):
                         m.reset()
-        elif not source.training and metrics:
-            source.log_dict(
-                cast(dict, metrics),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=False,
-                sync_dist=True,
-                add_dataloader_idx=add_dataloader_idx,
-            )
 
     def setup(self, *args, **kwargs):
         if self.checkpoint is not None:

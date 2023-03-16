@@ -38,11 +38,14 @@ class TestTask:
             pytest.param("gpu", marks=pytest.mark.cuda),
         ],
     )
-    def test_run(self, task, default_root_dir, accelerator, datamodule, stage, named_datasets):
+    def test_run(self, mocker, task, default_root_dir, accelerator, datamodule, stage, named_datasets):
         if accelerator == "gpu":
             precision = "bf16-mixed" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
+
+        log_spy = mocker.spy(task, "log")
+        log_dict_spy = mocker.spy(task, "log_dict")
 
         task.named_datasets = named_datasets
         trainer = pl.Trainer(
@@ -56,6 +59,8 @@ class TestTask:
         dm = datamodule(batch_size=4)
         func = getattr(trainer, stage)
         func(task, datamodule=dm)
+        log_spy.assert_called()
+        log_dict_spy.assert_called()
 
     @pytest.mark.parametrize("stage", ["fit", "test"])
     @pytest.mark.parametrize(
