@@ -116,7 +116,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
 
     def __init__(
         self,
-        optimizer_init: Dict[str, Any],
+        optimizer_init: Dict[str, Any] = {},
         lr_scheduler_init: Dict[str, Any] = {},
         lr_scheduler_interval: str = "epoch",
         lr_scheduler_monitor: str = "train/total_loss_epoch",
@@ -138,10 +138,6 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.strict_checkpoint = strict_checkpoint
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
-
-        if not optimizer_init:
-            raise ValueError("optimizer_init must be provided")
-
         self.save_hyperparameters()
 
     @abstractmethod
