@@ -184,8 +184,6 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         # Log metrics
         if source.training and metrics and source.global_step % source.log_train_metrics_interval == 0:
             cls._log_train_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
-        elif not source.training and metrics:
-            cls._log_inference_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
 
     @classmethod
     def _log_inference_metrics(
@@ -195,6 +193,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics: tm.MetricCollection,
         **kwargs,
     ) -> None:
+        assert state.mode != Mode.TRAIN
         metrics_to_log = (
             cast(
                 Dict[str, Tensor],
@@ -222,6 +221,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics: tm.MetricCollection,
         **kwargs,
     ) -> None:
+        assert state.mode == Mode.TRAIN
         metrics_to_log = (
             cast(
                 Dict[str, Tensor],
@@ -316,6 +316,36 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             state = State(Mode.TEST, name)
             metrics = self.create_metrics(state).to(self.device)
             self.metrics.set_state(state, metrics)
+
+    def on_validation_epoch_end(self, *args, **kwargs):
+        state = State(Mode.VAL)
+        metrics = self.metrics.get(state)
+        if isinstance(metrics, tm.MetricCollection):
+            self._log_inference_metrics(state, self, metrics)
+
+    def on_test_epoch_end(self, *args, **kwargs):
+        state = State(Mode.TEST)
+        metrics = self.metrics.get(state)
+        if isinstance(metrics, tm.MetricCollection):
+            self._log_inference_metrics(state, self, metrics)
+
+    def on_train_epoch_start(self, *args, **kwargs):
+        state = State(Mode.TRAIN)
+        metrics = self.metrics.get(state)
+        if isinstance(metrics, tm.MetricCollection):
+            metrics.reset()
+
+    def on_validation_epoch_start(self, *args, **kwargs):
+        state = State(Mode.VAL)
+        metrics = self.metrics.get(state)
+        if isinstance(metrics, tm.MetricCollection):
+            metrics.reset()
+
+    def on_test_epoch_start(self, *args, **kwargs):
+        state = State(Mode.TEST)
+        metrics = self.metrics.get(state)
+        if isinstance(metrics, tm.MetricCollection):
+            metrics.reset()
 
     @classmethod
     def _get_checkpoint_path(cls, path: Optional[Path]) -> Path:

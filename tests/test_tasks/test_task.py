@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
+from copy import deepcopy
 
 import pytest
 import pytorch_lightning as pl
 import torch
+import torchmetrics as tm
 import yaml
 
 from deep_helpers.cli import main as cli_main
+from deep_helpers.structs import Mode
 from deep_helpers.testing import checkpoint_factory
 from tests.conftest import CustomTask
 
@@ -136,3 +139,34 @@ class TestTask:
         call = spy.mock_calls[0]
         assert isinstance(call.args[-1], dict)
         assert call.kwargs["strict"] == strict
+
+    def test_log_val_metrics_on_epoch(self, mocker, task, default_root_dir, datamodule):
+        metric = tm.Accuracy(task="multiclass", num_classes=10)
+        update = mocker.spy(metric, "update")
+        compute = mocker.spy(metric, "compute")
+        reset = mocker.spy(metric, "reset")
+
+        def func(state):
+            if state.mode == Mode.VAL:
+                return tm.MetricCollection({"acc": metric})
+            else:
+                return tm.MetricCollection({"acc": deepcopy(metric)})
+
+        mocker.patch.object(task, "create_metrics", new=func)
+        log_dict_spy = mocker.spy(task, "log_dict")
+
+        trainer = pl.Trainer(
+            fast_dev_run=True,
+            default_root_dir=default_root_dir,
+            precision=32,
+            accelerator="cpu",
+            devices=1,
+        )
+        dm = datamodule(batch_size=4)
+        trainer.fit(task, datamodule=dm)
+        update.assert_called_once()
+        reset.assert_called()
+        compute.assert_called()
+
+        log_metric_count = sum(1 for call in log_dict_spy.mock_calls for k in call.args[0].keys() if k == "val/acc")
+        assert log_metric_count == 1
