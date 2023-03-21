@@ -4,10 +4,14 @@
 from dataclasses import dataclass, field, replace
 from typing import Iterable, Optional, Set, Union, cast
 
-from strenum import StrEnum
+
+try:
+    from enum import StrEnum  # pragma: no cover
+except ImportError:
+    from strenum import StrEnum  # pragma: no cover
 
 
-class Mode(StrEnum):
+class Mode(StrEnum):  # type: ignore
     TRAIN = cast("Mode", "train")
     VAL = cast("Mode", "val")
     TEST = cast("Mode", "test")

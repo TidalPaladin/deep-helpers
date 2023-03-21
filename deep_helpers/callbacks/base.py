@@ -14,7 +14,7 @@ from ..structs import Mode, State
 from ..tasks import I, O, Task
 
 
-ALL_MODES: Final = [Mode.TRAIN, Mode.VAL, Mode.TEST]
+ALL_MODES: Final[List[Mode]] = [Mode.TRAIN, Mode.VAL, Mode.TEST]
 T = TypeVar("T")
 L = TypeVar("L", bound=Logger)
 

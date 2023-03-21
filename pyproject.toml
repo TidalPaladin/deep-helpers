@@ -16,7 +16,7 @@ dependencies = [
   "numpy",
   "pandas",
   "matplotlib",
-  "strenum",
+  "strenum; python_version < '3.11'",
   "scikit-learn",
   "wandb",
   "jsonargparse[signatures]>=4.17.0",
@@ -52,6 +52,7 @@ multi_line_output = 3
 use_parentheses = false
 
 [tool.pyright]
+pythonVersion = "3.11"
 
 [tool.pdm]
 version = { source = "scm" }
