@@ -43,6 +43,18 @@ class TestUncollate:
                 else:
                     assert v == batch[k]
 
+    def test_uncollate_empty(self):
+        batch = {"t1": torch.rand(0, 2, 4), "t2": torch.rand(0, 2, 8)}
+        result = list(uncollate(batch))
+        assert not result
+
+    def test_uncollate_scalar(self):
+        batch = {"t1": torch.tensor(0.0), "t2": torch.tensor([0.0])}
+        result = list(uncollate(batch))
+        assert len(result) == 1
+        assert result[0]["t1"] == 0.0
+        assert result[0]["t2"] == 0.0
+
 
 class TestDatasetNames:
     @pytest.fixture
