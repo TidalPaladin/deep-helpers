@@ -91,8 +91,15 @@ def uncollate(batch: D) -> Iterator[D]:
     Returns:
         An iterator of example dictionaries.
     """
-    # separate out sequence-like elements and compute a batch size
+    # separate out sequence-like elements
     sequences = {k: v for k, v in batch.items() if isinstance(v, (Sequence, Tensor))}
+
+    # convert any 0-d tensors to a 1-d tensor
+    for k, v in sequences.items():
+        if isinstance(v, Tensor) and v.ndim == 0:
+            sequences[k] = v.view(1)
+
+    # compute a batch size
     batch_size = min((len(v) for v in sequences.values()), default=0)
 
     # repeat non-sequence elements
