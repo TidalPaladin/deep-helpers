@@ -177,6 +177,9 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     def on_validation_epoch_end(self, *args, **kwargs):
         self._on_epoch_end(*args, **kwargs, mode=Mode.VAL)
 
+    def on_validation_end(self, *args, **kwargs):
+        self._on_epoch_end(*args, **kwargs, mode=Mode.VAL)
+
     def on_test_epoch_end(self, *args, **kwargs):
         self._on_epoch_end(*args, **kwargs, mode=Mode.TEST)
 
