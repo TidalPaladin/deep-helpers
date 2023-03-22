@@ -81,29 +81,53 @@ class SupportsDatasetNames(Protocol):
     dataset_names: DatasetNames
 
 
+def is_tensor_or_sequence(data: Any) -> bool:
+    return isinstance(data, (Tensor, Sequence))
+
+
+def is_multidim_tensor(data: Any) -> bool:
+    return bool(isinstance(data, Tensor) and data.ndim and data.numel())
+
+
 def uncollate(batch: D) -> Iterator[D]:
     r"""Uncollates a batch dictionary into an iterator of example dictionaries.
     This is the inverse of :func:`collate_fn`. Non-sequence elements are repeated
     for each example in the batch. If examples in the batch have different
-    sequence lengths, the iterator will be truncated to the shortest sequence.
+    sequence lengths, the iterator will be truncated to the shortest sequence. If length-1
+    elements are present, they are expanded to match the batch size.
+
     Args:
         batch: The batch dictionary to uncollate.
     Returns:
         An iterator of example dictionaries.
     """
     # separate out sequence-like elements
-    sequences = {k: v for k, v in batch.items() if isinstance(v, (Sequence, Tensor))}
+    sequences = {k: v for k, v in batch.items() if is_tensor_or_sequence(v) and not isinstance(v, str)}
 
-    # convert any 0-d tensors to a 1-d tensor
+    # get the lengths of every sequence or non-0d tensor
+    lengths = {k: len(v) for k, v in sequences.items() if (is_multidim_tensor(v) or isinstance(v, Sequence)) and len(v)}
+
+    # Compute a batch size based on the minimum length of all sequences.
+    # We will try to skip length 1 elements under the assumption they will be expanded
+    has_nontrivial_len = any(v > 1 for v in lengths.values())
+    if has_nontrivial_len:
+        batch_size = min((v for v in lengths.values() if v > 1), default=0)
+    else:
+        batch_size = min(lengths.values(), default=0)
+
+    # expand any length-1 sequences to the batch size
     for k, v in sequences.items():
-        if isinstance(v, Tensor) and v.ndim == 0:
-            sequences[k] = v.view(1)
-
-    # compute a batch size
-    batch_size = min((len(v) for v in sequences.values()), default=0)
+        if isinstance(v, Tensor) and v.numel():
+            sequences[k] = (
+                v.view(1).expand(batch_size) if not is_multidim_tensor(v) else v.expand(batch_size, *v.shape[1:])
+            )
+        elif len(v) == 1:
+            sequences[k] = list(v) * batch_size
 
     # repeat non-sequence elements
-    non_sequences = {k: [v] * batch_size for k, v in batch.items() if not isinstance(v, (Sequence, Tensor))}
+    non_sequences = {
+        k: [v] * batch_size for k, v in batch.items() if not isinstance(v, (Sequence, Tensor)) or isinstance(v, str)
+    }
 
     for idx in range(batch_size):
         result = {k: v[idx] for container in (sequences, non_sequences) for k, v in container.items()}

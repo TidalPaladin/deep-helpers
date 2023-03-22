@@ -12,7 +12,7 @@ from deep_helpers.structs import Mode
 
 
 class TestUncollate:
-    def test_uncollate_tensors(self):
+    def test_tensors(self):
         batch = {"t1": torch.rand(2, 4), "t2": torch.rand(2, 8)}
         for i, example in enumerate(uncollate(batch)):
             assert isinstance(example, dict)
@@ -21,7 +21,7 @@ class TestUncollate:
                 assert isinstance(v, Tensor)
                 assert (v == batch[k][i]).all()
 
-    def test_uncollate_mixed(self):
+    def test_mixed(self):
         batch = {"t1": torch.rand(2, 4), "paths": [Path("foo.dcm"), Path("bar.dcm")]}
         for i, example in enumerate(uncollate(batch)):
             assert isinstance(example, dict)
@@ -43,17 +43,29 @@ class TestUncollate:
                 else:
                     assert v == batch[k]
 
-    def test_uncollate_empty(self):
+    def test_empty(self):
         batch = {"t1": torch.rand(0, 2, 4), "t2": torch.rand(0, 2, 8)}
         result = list(uncollate(batch))
         assert not result
 
-    def test_uncollate_scalar(self):
+    def test_scalar(self):
         batch = {"t1": torch.tensor(0.0), "t2": torch.tensor([0.0])}
         result = list(uncollate(batch))
         assert len(result) == 1
         assert result[0]["t1"] == 0.0
         assert result[0]["t2"] == 0.0
+
+    def test_expand(self):
+        batch = {"t1": torch.rand(1, 2), "t2": torch.rand(4, 2), "t3": ["foo"]}
+        result = list(uncollate(batch))
+        assert len(result) == 4
+
+    def test_expand_scalar(self):
+        batch = {"t1": torch.tensor(0.0), "t2": torch.rand(4, 2)}
+        result = list(uncollate(batch))
+        assert len(result) == 4
+        assert result[0]["t1"] == 0.0
+        assert result[1]["t1"] == 0.0
 
 
 class TestDatasetNames:
