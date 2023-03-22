@@ -2,16 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from dataclasses import dataclass, field, replace
+from enum import Enum, auto
 from typing import Iterable, Optional, Set, Union, cast
 
-from strenum import StrEnum
 
+class Mode(Enum):
+    TRAIN = auto()
+    VAL = auto()
+    TEST = auto()
+    PREDICT = auto()
 
-class Mode(StrEnum):
-    TRAIN = cast("Mode", "train")
-    VAL = cast("Mode", "val")
-    TEST = cast("Mode", "test")
-    PREDICT = cast("Mode", "predict")
+    def __str__(self) -> str:
+        return self.name.lower()
 
     @classmethod
     def create(cls, val: Union[str, "Mode"]) -> "Mode":
@@ -20,7 +22,7 @@ class Mode(StrEnum):
         elif isinstance(val, str):
             val = val.strip().lower()
             for mode in cast(Iterable, cls):
-                if mode.prefix == val:
+                if str(mode) == val:
                     return mode
             raise ValueError(f"Invalid mode: {val}")
         else:

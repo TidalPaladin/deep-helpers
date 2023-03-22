@@ -28,7 +28,7 @@ class TestMode:
         ],
     )
     def test_create(self, inp, exp):
-        assert Mode(inp) == exp
+        assert Mode.create(inp) == exp
 
 
 class TestState:

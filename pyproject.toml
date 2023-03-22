@@ -16,7 +16,6 @@ dependencies = [
   "numpy",
   "pandas",
   "matplotlib",
-  "strenum",
   "scikit-learn",
   "wandb",
   "jsonargparse[signatures]>=4.17.0",
