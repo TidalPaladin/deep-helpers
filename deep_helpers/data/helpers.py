@@ -89,20 +89,23 @@ def is_multidim_tensor(data: Any) -> bool:
     return bool(isinstance(data, Tensor) and data.ndim and data.numel())
 
 
-def uncollate(batch: D) -> Iterator[D]:
+def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     r"""Uncollates a batch dictionary into an iterator of example dictionaries.
     This is the inverse of :func:`collate_fn`. Non-sequence elements are repeated
     for each example in the batch. If examples in the batch have different
     sequence lengths, the iterator will be truncated to the shortest sequence. If length-1
-    elements are present, they are expanded to match the batch size.
+    elements are present, they are expanded to match the batch size. If dictionaries are present,
+    they will be recursively uncollated.
 
     Args:
         batch: The batch dictionary to uncollate.
+        batch_size: The batch size. If not provided, the batch size is inferred from ``batch``.
     Returns:
         An iterator of example dictionaries.
     """
-    # separate out sequence-like elements
+    # separate out sequence-like elements and dicts
     sequences = {k: v for k, v in batch.items() if is_tensor_or_sequence(v) and not isinstance(v, str)}
+    dicts = {k: v for k, v in batch.items() if isinstance(v, dict)}
 
     # get the lengths of every sequence or non-0d tensor
     lengths = {k: len(v) for k, v in sequences.items() if (is_multidim_tensor(v) or isinstance(v, Sequence)) and len(v)}
@@ -111,9 +114,20 @@ def uncollate(batch: D) -> Iterator[D]:
     # We will try to skip length 1 elements under the assumption they will be expanded
     has_nontrivial_len = any(v > 1 for v in lengths.values())
     if has_nontrivial_len:
-        batch_size = min((v for v in lengths.values() if v > 1), default=0)
+        _batch_size = min((v for v in lengths.values() if v > 1), default=0)
     else:
-        batch_size = min(lengths.values(), default=0)
+        _batch_size = min(lengths.values(), default=0)
+
+    # Check the batch size against the user-provided batch size
+    if batch_size is not None:
+        # If we inferred batch size 1, use the user provided batch size.
+        # Recursive dicts may be what contains the valid batch size
+        if _batch_size == 1:
+            _batch_size = batch_size
+        elif _batch_size < batch_size:
+            raise ValueError(f"Expected batch size {batch_size} but got {_batch_size}")
+    else:
+        batch_size = _batch_size
 
     # expand any length-1 sequences to the batch size
     for k, v in sequences.items():
@@ -124,11 +138,18 @@ def uncollate(batch: D) -> Iterator[D]:
         elif len(v) == 1:
             sequences[k] = list(v) * batch_size
 
-    # repeat non-sequence elements
+    # repeat non-sequence and non-dict elements
     non_sequences = {
-        k: [v] * batch_size for k, v in batch.items() if not isinstance(v, (Sequence, Tensor)) or isinstance(v, str)
+        k: [v] * batch_size
+        for k, v in batch.items()
+        if not isinstance(v, (Sequence, Tensor, dict)) or isinstance(v, str)
     }
 
+    # recursively uncollate dicts
+    dicts = {k: uncollate(v, batch_size) for k, v in dicts.items()}
+
+    # yield uncollated outputs
     for idx in range(batch_size):
         result = {k: v[idx] for container in (sequences, non_sequences) for k, v in container.items()}
+        result.update({k: next(v) for k, v in dicts.items()})
         yield cast(D, result)

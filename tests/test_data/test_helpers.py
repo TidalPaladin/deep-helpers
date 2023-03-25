@@ -67,6 +67,25 @@ class TestUncollate:
         assert result[0]["t1"] == 0.0
         assert result[1]["t1"] == 0.0
 
+    def test_nested_dicts(self):
+        batch = {
+            "t1": torch.rand(4, 3),
+            "d": {
+                "t3": torch.rand(4, 2),
+                "t4": torch.tensor(0.0),
+                "d2": {
+                    "t5": torch.rand(4, 1),
+                },
+            },
+        }
+        result = list(uncollate(batch))
+        assert len(result) == 4
+        assert isinstance(result[0]["t1"], Tensor)
+        assert isinstance(result[0]["d"], dict)
+        assert result[0]["d"]["t3"].shape == (2,)
+        assert result[0]["d"]["t4"] == 0.0
+        assert result[0]["d"]["d2"]["t5"].shape == (1,)
+
 
 class TestDatasetNames:
     @pytest.fixture
