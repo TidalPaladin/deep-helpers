@@ -115,6 +115,8 @@ def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     has_nontrivial_len = any(v > 1 for v in lengths.values())
     if has_nontrivial_len:
         _batch_size = min((v for v in lengths.values() if v > 1), default=0)
+    elif not lengths and any(isinstance(v, Tensor) and v.numel() for v in sequences.values()):
+        _batch_size = 1
     else:
         _batch_size = min(lengths.values(), default=0)
 
