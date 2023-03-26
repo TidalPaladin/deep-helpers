@@ -132,7 +132,14 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
             self.wrapped_log(targets, pl_module, tag, step)
 
     @torch.no_grad()
-    def enqueue(self, example: I, pred: O, queue: PriorityQueue[PrioritizedItem], batched: bool = True) -> bool:
+    def enqueue(
+        self,
+        example: I,
+        pred: O,
+        queue: PriorityQueue[PrioritizedItem],
+        batched: bool = True,
+        detach: bool = True,
+    ) -> bool:
         r"""Enqueue an example/prediction pair to a given queue"""
         # recurse on batched input
         if batched:
@@ -140,7 +147,7 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
             for e, p in zip(uncollate(example), uncollate(pred)):  # type: ignore
                 e: I
                 p: O
-                success = success or self.enqueue(e, p, queue, batched=False)
+                success = success or self.enqueue(e, p, queue, batched=False, detach=detach)
             return success
 
         # compute priority for enqueue target
@@ -162,8 +169,9 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
         if insertion:
             # move to CPU to conserve memory.
             e, p = item.value
-            e = recursive_detach(e, to_cpu=True)
-            p = recursive_detach(p, to_cpu=True)
+            if detach:
+                e = recursive_detach(e, to_cpu=True)
+                p = recursive_detach(p, to_cpu=True)
             item.value = (e, p)
 
         # restore queue
