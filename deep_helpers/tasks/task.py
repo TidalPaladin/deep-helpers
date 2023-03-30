@@ -20,6 +20,7 @@ from torchmetrics import MetricCollection
 
 # from ..callbacks.wandb import WandBCheckpointCallback
 from ..data import SupportsDatasetNames
+from ..helpers import load_checkpoint
 from ..structs import MetricStateCollection, Mode, State
 
 
@@ -250,7 +251,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                 raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")  # pragma: no cover
             rank_zero_info(f"Loading checkpoint (strict={self.strict_checkpoint}): {checkpoint_path}")
             state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
-            self.load_state_dict(state_dict, strict=self.strict_checkpoint)
+            load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
 
     def compute_total_loss(self, output: O) -> Tensor:
         loss = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))

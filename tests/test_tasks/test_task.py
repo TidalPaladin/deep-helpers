@@ -131,12 +131,12 @@ class TestTask:
 
     @pytest.mark.parametrize("strict", [False, True])
     def test_load_checkpoint(self, mocker, task, strict):
-        spy = mocker.spy(task.__class__, "load_state_dict")
+        m = mocker.patch("deep_helpers.tasks.task.load_checkpoint")
         checkpoint_path = checkpoint_factory(task)
         task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
         task.setup()
-        spy.assert_called()
-        call = spy.mock_calls[0]
+        m.assert_called()
+        call = m.mock_calls[0]
         assert isinstance(call.args[-1], dict)
         assert call.kwargs["strict"] == strict
 
