@@ -20,6 +20,7 @@ dependencies = [
   "scikit-learn",
   "wandb",
   "jsonargparse[signatures]>=4.17.0",
+  "registry @ git+https://github.com/TidalPaladin/callable-registry.git",
 ]
 readme = "README.md"
 license = {text = "Apache"}

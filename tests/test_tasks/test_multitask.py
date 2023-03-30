@@ -7,6 +7,7 @@ import pytest
 import pytorch_lightning as pl
 import torch
 import yaml
+
 from deep_helpers.cli import main as cli_main
 from deep_helpers.tasks import MultiTask
 
@@ -17,6 +18,7 @@ def multitask(logger):
     task = MultiTask(tasks=["custom-task", "custom-task"], optimizer_init=optimizer_init)
     trainer = pl.Trainer(logger=logger)
     task.trainer = trainer
+    task.setup("fit")
     # NOTE: yield here to weakref to logger being gc'ed
     yield task
 

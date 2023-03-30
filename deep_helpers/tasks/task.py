@@ -160,9 +160,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
     ) -> O:
         raise NotImplementedError  # pragma: no cover
 
-    @classmethod
     def run_logging_loop(
-        cls,
+        self,
         state: State,
         source: "Task",
         output: O,
@@ -188,7 +187,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
 
         # Log metrics
         if source.training and metrics and source.global_step % source.log_train_metrics_interval == 0:
-            cls._log_train_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
+            self._log_train_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
 
     @classmethod
     def _log_inference_metrics(

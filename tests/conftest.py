@@ -10,10 +10,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchmetrics as tm
-from deep_helpers.data import DatasetNames, SupportsDatasetNames
-from deep_helpers.structs import Mode, State
-from deep_helpers.tasks import TASKS, Task
-from deep_helpers.testing import handle_cuda_mark
 from pytorch_lightning.loggers.wandb import WandbLogger
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, default_collate
@@ -21,7 +17,7 @@ from torchmetrics.classification import MulticlassAccuracy
 
 from deep_helpers.data import DatasetNames, SupportsDatasetNames
 from deep_helpers.structs import Mode, State
-from deep_helpers.tasks import Task
+from deep_helpers.tasks import TASKS, Task
 from deep_helpers.testing import handle_cuda_mark
 
 
@@ -83,7 +79,7 @@ DEFAULT_OPTIMIZER_INIT = {
 }
 
 
-@TASKS(name="custom-task")
+@TASKS(name="custom-task", override=True)
 class CustomTask(Task):
     def __init__(self, *args, **kwargs):
         if not args and not kwargs.get("optimizer_init", {}):

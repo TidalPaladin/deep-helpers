@@ -117,7 +117,6 @@ class MultiTask(Task, metaclass=ForwardHooks):
                 return func(state, self, *args, **kwargs)
 
             task.run_logging_loop = wrapped
-            assert task.__class__.run_logging_loop == func
 
             # Run setup on each task
             task.setup(stage)
