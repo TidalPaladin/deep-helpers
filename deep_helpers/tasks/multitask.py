@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from abc import ABCMeta
-from functools import wraps
-from typing import Any, Dict, Final, Iterator, List, Optional, Tuple, TypeVar, cast
+from typing import Any, Dict, Final, Iterator, List, Optional, Tuple, TypeVar, Union, cast
 
 import torch.nn as nn
 import torchmetrics as tm
 from pytorch_lightning.core.hooks import CheckpointHooks, ModelHooks
 
-from ..structs import State
 from .task import TASKS, Task
 
 
@@ -66,7 +64,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
     r"""A multi-task wrapper around multiple contained tasks.
 
     Args:
-        tasks: A list of task names to instantiate. Tasks are registered in the ``TASKS`` registry.
+        tasks: A list of tasks or task names to instantiate. Tasks are registered in the ``TASKS`` registry.
         checkpoint: A checkpoint to load. If None, no checkpoint is loaded.
         strict_checkpoint: Whether to enforce strict checkpoint loading.
         cycle: Determines how tasks are handled during training. If True, tasks are cycled through
@@ -78,7 +76,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
 
     def __init__(
         self,
-        tasks: List[str],
+        tasks: List[Union[str, Task]],
         checkpoint: Optional[str] = None,
         strict_checkpoint: bool = True,
         cycle: bool = True,
@@ -103,47 +101,30 @@ class MultiTask(Task, metaclass=ForwardHooks):
             # Update the trainer reference in each task
             task.trainer = self.trainer
 
-            # Patch run_logging_loop to bea no-op. We'll call it at MultiTask level.
-            # This is necessary because subtasks won't be able to call log() directly.
-            func = task.run_logging_loop
-
-            @wraps(func)
-            def wrapped(
-                state: State,
-                source: Task,
-                *args,
-                **kwargs,
-            ) -> None:
-                return func(state, self, *args, **kwargs)
-
-            task.run_logging_loop = wrapped
-
             # Run setup on each task
             task.setup(stage)
 
-    def teardown(self, *args, **kwargs):
-        super().teardown(*args, **kwargs)
-        # Unpatch run_logging_loop
-        for _, task in self:
-            task.run_logging_loop = task.__class__.run_logging_loop
-
     def share_attribute(self, attr_name: str) -> None:
+        r"""Share an attribute across all of the contained tasks."""
         proto = self.find_attribute(attr_name)
         setattr(self, attr_name, proto)
         self.update_attribute(attr_name, proto)
 
     def update_attribute(self, attr_name: str, val: nn.Module) -> None:
+        r"""Update an attribute in all of the contained tasks."""
         for task in self:
             if hasattr(task, attr_name):
                 setattr(task, attr_name, val)
 
     def find_attribute(self, attr_name: str) -> nn.Module:
+        r"""Find an attribute in any of the contained tasks. Returns the first matching attribute."""
         for task in self:
             if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
                 return val
         raise AttributeError(attr_name)
 
     def find_all_attributes(self, attr_name: str) -> List[nn.Module]:
+        r"""Find an attribute in any of the contained tasks. Returns all matching attributes."""
         result: List[nn.Module] = []
         for _, task in self:
             if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
@@ -211,3 +192,11 @@ class MultiTask(Task, metaclass=ForwardHooks):
             task_output = task.predict_step(batch, batch_idx)
             output[name] = task_output
         return output
+
+    def on_validation_epoch_end(self, *args, **kwargs):
+        for _, task in self:
+            task.on_validation_epoch_end(*args, **kwargs)
+
+    def on_test_epoch_end(self, *args, **kwargs):
+        for _, task in self:
+            task.on_test_epoch_end(*args, **kwargs)

@@ -160,40 +160,44 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
     ) -> O:
         raise NotImplementedError  # pragma: no cover
 
+    @property
+    def attached_task(self) -> "Task":
+        r"""Returns the task attached to the current :class:`Trainer`. This is useful when multiple tasks are nested."""
+        return self.trainer.lightning_module
+
     def run_logging_loop(
         self,
         state: State,
-        source: "Task",
         output: O,
         metrics: Optional[tm.MetricCollection] = None,
         add_dataloader_idx: bool = False,
     ) -> None:
         # Manually log loss, PyTorch Lightning 1.9 doesn't do this for us anymore
-        source.log("loss", cast(Dict[str, Any], output)["loss"], on_step=True, on_epoch=False, prog_bar=True)
+        self.attached_task.log(
+            "loss", cast(Dict[str, Any], output)["loss"], on_step=True, on_epoch=False, prog_bar=True
+        )
 
         # Log things placed into `output` under the key `log` unless they are metrics.
         # Metrics require special handling and will be logged separately.
         scalars_to_log = {
             f"{state.with_postfix(k)}": v for k, v in output.get("log", {}).items() if not isinstance(v, tm.Metric)
         }
-        source.log_dict(
+        self.attached_task.log_dict(
             scalars_to_log,
-            on_step=source.trainer.training,
-            on_epoch=not source.trainer.training,
+            on_step=self.attached_task.trainer.training,
+            on_epoch=not self.attached_task.trainer.training,
             prog_bar=False,
-            sync_dist=not source.trainer.training,
+            sync_dist=not self.attached_task.trainer.training,
             add_dataloader_idx=add_dataloader_idx,
         )
 
         # Log metrics
-        if source.training and metrics and source.global_step % source.log_train_metrics_interval == 0:
-            self._log_train_metrics(state, source, metrics, add_dataloader_idx=add_dataloader_idx)
+        if self.training and metrics and self.global_step % self.attached_task.log_train_metrics_interval == 0:
+            self._log_train_metrics(state, metrics, add_dataloader_idx=add_dataloader_idx)
 
-    @classmethod
     def _log_inference_metrics(
-        cls,
+        self,
         state: State,
-        source: "Task",
         metrics: tm.MetricCollection,
         **kwargs,
     ) -> None:
@@ -208,7 +212,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         )
 
         if metrics_to_log:
-            source.log_dict(
+            self.attached_task.log_dict(
                 metrics_to_log,
                 on_step=False,
                 on_epoch=True,
@@ -217,11 +221,9 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                 **kwargs,
             )
 
-    @classmethod
     def _log_train_metrics(
-        cls,
+        self,
         state: State,
-        source: "Task",
         metrics: tm.MetricCollection,
         **kwargs,
     ) -> None:
@@ -236,9 +238,9 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         )
 
         if metrics_to_log:
-            on_step = not source.log_train_metrics_on_epoch
-            on_epoch = source.log_train_metrics_on_epoch
-            source.log_dict(
+            on_step = not self.attached_task.log_train_metrics_on_epoch
+            on_epoch = self.attached_task.log_train_metrics_on_epoch
+            self.attached_task.log_dict(
                 metrics_to_log, on_step=on_step, on_epoch=on_epoch, prog_bar=False, sync_dist=False, **kwargs
             )
             # If logging on step, manually reset the metrics after computing them.
@@ -267,7 +269,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, self, output, metrics)
+        self.run_logging_loop(self.state, output, metrics)
         return output
 
     def validation_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
@@ -283,7 +285,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, self, output, metrics)
+        self.run_logging_loop(self.state, output, metrics)
         return output
 
     def test_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
@@ -298,7 +300,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
         output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, self, output, metrics)
+        self.run_logging_loop(self.state, output, metrics)
         return output
 
     def on_fit_start(self):
@@ -325,13 +327,13 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         state = State(Mode.VAL)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
-            self._log_inference_metrics(state, self, metrics)
+            self._log_inference_metrics(state, metrics)
 
     def on_test_epoch_end(self, *args, **kwargs):
         state = State(Mode.TEST)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
-            self._log_inference_metrics(state, self, metrics)
+            self._log_inference_metrics(state, metrics)
 
     def on_train_epoch_start(self, *args, **kwargs):
         state = State(Mode.TRAIN)
