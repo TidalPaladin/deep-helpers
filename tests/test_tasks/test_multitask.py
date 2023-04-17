@@ -8,14 +8,34 @@ import pytorch_lightning as pl
 import torch
 import yaml
 
+from deep_helpers.callbacks import LoggingCallback, MultiTaskCallbackWrapper
 from deep_helpers.cli import main as cli_main
-from deep_helpers.tasks import MultiTask
+from deep_helpers.tasks import MultiTask, Task
+
+
+class DummyCallback(LoggingCallback):
+    def reset(self, *args, **kwargs):
+        pass
+
+    def register(self, *args, **kwargs):
+        pass
+
+    def prepare_target(self, *args, **kwargs):
+        return {}
+
+
+@pytest.fixture
+def callback(mocker):
+    callback = DummyCallback("dummy")
+    mocker.patch.object(callback, "_on_batch_end")
+    mocker.patch.object(callback, "_on_epoch_end")
+    return MultiTaskCallbackWrapper(callback, {0})
 
 
 @pytest.fixture
 def multitask(logger):
     optimizer_init = {"class_path": "torch.optim.Adam", "init_args": {"lr": 0.001}}
-    task = MultiTask(tasks=["custom-task", "custom-task"], optimizer_init=optimizer_init)
+    task = MultiTask(tasks=["custom-task", "custom-task2"], optimizer_init=optimizer_init)
     trainer = pl.Trainer(logger=logger)
     task.trainer = trainer
     task.setup("fit")
@@ -24,6 +44,45 @@ def multitask(logger):
 
 
 class TestMultiTask:
+    def test_len(self, multitask):
+        assert len(multitask) == 2
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            0,
+            1,
+            "custom-task",
+            "custom-task2",
+            pytest.param("foo", marks=pytest.mark.xfail(raises=KeyError, strict=True)),
+            pytest.param(3, marks=pytest.mark.xfail(raises=IndexError, strict=True)),
+        ],
+    )
+    def test_getitem(self, key, multitask):
+        assert isinstance(multitask[key], Task)
+
+    def test_iter(self, multitask):
+        iterator = iter(multitask)
+        name, val = next(iterator)
+        assert name == "custom-task"
+        assert isinstance(val, Task)
+        name, val = next(iterator)
+        assert name == "custom-task2"
+        assert isinstance(val, Task)
+
+    @pytest.mark.parametrize(
+        "batch_idx,exp",
+        [
+            (0, "custom-task"),
+            (1, "custom-task2"),
+            (2, "custom-task"),
+            (3, "custom-task2"),
+        ],
+    )
+    def test_get_current_task_name(self, multitask, batch_idx, exp):
+        assert multitask.cycle
+        assert multitask.get_current_task_name(batch_idx) == exp
+
     def test_configure_optimizers(self):
         optimizer_init = {"class_path": "torch.optim.Adam", "init_args": {"lr": 0.001}}
         lr_scheduler_init = {
@@ -80,7 +139,7 @@ class TestMultiTask:
     )
     def test_run(self, multitask, default_root_dir, accelerator, datamodule, stage, named_datasets, cycle):
         if accelerator == "gpu":
-            precision = "bf16" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
+            precision = "bf16-mixed" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
 
@@ -108,7 +167,7 @@ class TestMultiTask:
     )
     def test_cli(self, mocker, tmp_path, task, datamodule, default_root_dir, accelerator, stage):
         if accelerator == "gpu":
-            precision = "bf16" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
+            precision = "bf16-mixed" if torch.cuda.get_device_capability(0)[0] >= 8 else "16"
         else:
             precision = 32
 

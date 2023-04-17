@@ -80,6 +80,7 @@ DEFAULT_OPTIMIZER_INIT = {
 
 
 @TASKS(name="custom-task", override=True)
+@TASKS(name="custom-task2", override=True)
 class CustomTask(Task):
     def __init__(self, *args, **kwargs):
         if not args and not kwargs.get("optimizer_init", {}):

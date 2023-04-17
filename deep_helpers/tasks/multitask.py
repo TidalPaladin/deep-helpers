@@ -89,8 +89,12 @@ class MultiTask(Task, metaclass=ForwardHooks):
     def __len__(self) -> int:
         return len(self._tasks)
 
-    def __getitem__(self, name: str) -> Task:
-        return cast(Task, self._tasks[name])
+    def __getitem__(self, val: Union[int, str]) -> Task:
+        if isinstance(val, str):
+            task = self._tasks[val]
+        else:
+            task = list(self._tasks.values())[val]
+        return cast(Task, task)
 
     def __iter__(self) -> Iterator[Tuple[str, Task]]:
         for name, task in self._tasks.items():

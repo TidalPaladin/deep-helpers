@@ -18,6 +18,7 @@ class BaseCallbackTest:
             [Mode.TRAIN],
             [Mode.VAL, Mode.TEST],
             [Mode.TEST],
+            [Mode.PREDICT],
         ]
     )
     def modes(self, request):

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from .base import LoggerIntegration, LoggingCallback
 from .metric import MetricLoggingCallback
+from .multitask import MultiTaskCallbackWrapper
 from .queue import QueuedLoggingCallback
 from .table import TableCallback
 
@@ -12,4 +13,5 @@ __all__ = [
     "MetricLoggingCallback",
     "TableCallback",
     "LoggerIntegration",
+    "MultiTaskCallbackWrapper",
 ]

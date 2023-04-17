@@ -3,7 +3,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Final, Generic, Iterable, List, Optional, Type, TypeVar
+from typing import Any, ClassVar, Final, Generic, Iterable, List, Optional, Type, TypeVar, Union
 
 import pytorch_lightning as pl
 from lightning_utilities.core.rank_zero import rank_zero_only
@@ -11,12 +11,13 @@ from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loggers import Logger
 
 from ..structs import Mode, State
-from ..tasks import I, O, Task
+from ..tasks import I, MultiTask, O, Task
 
 
-ALL_MODES: Final = [Mode.TRAIN, Mode.VAL, Mode.TEST]
+ALL_MODES: Final = [Mode.TRAIN, Mode.VAL, Mode.TEST, Mode.PREDICT]
 T = TypeVar("T")
 L = TypeVar("L", bound=Logger)
+TaskIdentifier = Union[str, int, Type[Task]]
 
 
 class LoggerIntegration(ABC, Generic[L, T]):
@@ -45,7 +46,7 @@ class LoggerIntegration(ABC, Generic[L, T]):
 class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     name: str
     modes: List[Mode] = field(default_factory=lambda: ALL_MODES)
-    tasks: Optional[List[Type[Task]]] = None
+    tasks: Optional[List[TaskIdentifier]] = None
 
     integrations: ClassVar[List[LoggerIntegration]]
 
@@ -103,7 +104,9 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     ):
         r"""Handles callback logic when batch ends."""
         target = self.prepare_target(trainer, pl_module, outputs, batch, batch_idx, *args, **kwargs)
-        self.wrapped_log(target, pl_module, trainer.global_step)
+        state = pl_module.state
+        tag = state.with_postfix(self.name)
+        self.wrapped_log(target, pl_module, tag, trainer.global_step)
 
     def _on_epoch_end(
         self,
@@ -113,6 +116,12 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     ):
         r"""Handles callback logic when epoch ends."""
         return
+
+    def identify_task(self, pl_module: Task, batch_idx: int) -> TaskIdentifier:
+        return pl_module.get_current_task_name(batch_idx) if isinstance(pl_module, MultiTask) else type(pl_module)
+
+    def should_run_on_task(self, pl_module: Task, batch_idx: int) -> bool:
+        return self.tasks is None or self.identify_task(pl_module, batch_idx) in self.tasks
 
     def on_train_batch_end(
         self,
@@ -126,6 +135,8 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     ):
         state = pl_module.state
         if not state.sanity_checking and state.mode not in self.modes:
+            return
+        elif not self.should_run_on_task(pl_module, batch_idx):
             return
         self.register(state, pl_module, batch, outputs)
         self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, *args, **kwargs)
@@ -143,6 +154,8 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
         state = pl_module.state
         if not state.sanity_checking and state.mode not in self.modes:
             return
+        elif not self.should_run_on_task(pl_module, batch_idx):
+            return
         self.register(state, pl_module, batch, outputs)
         self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, *args, **kwargs)
 
@@ -159,6 +172,26 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
         state = pl_module.state
         if not state.sanity_checking and state.mode not in self.modes:
             return
+        elif not self.should_run_on_task(pl_module, batch_idx):
+            return
+        self.register(state, pl_module, batch, outputs)
+        self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, *args, **kwargs)
+
+    def on_predict_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: Task,
+        outputs: O,
+        batch: I,
+        batch_idx: int,
+        *args,
+        **kwargs,
+    ):
+        state = pl_module.state
+        if not state.sanity_checking and state.mode not in self.modes:
+            return
+        elif not self.should_run_on_task(pl_module, batch_idx):
+            return
         self.register(state, pl_module, batch, outputs)
         self._on_batch_end(trainer, pl_module, outputs, batch, batch_idx, *args, **kwargs)
 
@@ -171,6 +204,9 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
     def on_test_epoch_begin(self, *args, **kwargs):
         self.reset(specific_modes=[Mode.TEST])
 
+    def on_predict_epoch_begin(self, *args, **kwargs):
+        self.reset(specific_modes=[Mode.PREDICT])
+
     def on_train_epoch_end(self, *args, **kwargs):
         self._on_epoch_end(*args, **kwargs, mode=Mode.TRAIN)
 
@@ -179,6 +215,9 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
 
     def on_test_epoch_end(self, *args, **kwargs):
         self._on_epoch_end(*args, **kwargs, mode=Mode.TEST)
+
+    def on_predict_epoch_end(self, *args, **kwargs):
+        self._on_epoch_end(*args, **kwargs, mode=Mode.PREDICT)
 
     def on_sanity_check_start(self, trainer: pl.Trainer, pl_module: Task):
         pl_module.state = pl_module.state.set_sanity_checking(True)
