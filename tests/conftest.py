@@ -17,7 +17,7 @@ from torchmetrics.classification import MulticlassAccuracy
 
 from deep_helpers.data import DatasetNames, SupportsDatasetNames
 from deep_helpers.structs import Mode, State
-from deep_helpers.tasks import Task
+from deep_helpers.tasks import TASKS, Task
 from deep_helpers.testing import handle_cuda_mark
 
 
@@ -79,6 +79,8 @@ DEFAULT_OPTIMIZER_INIT = {
 }
 
 
+@TASKS(name="custom-task", override=True)
+@TASKS(name="custom-task2", override=True)
 class CustomTask(Task):
     def __init__(self, *args, **kwargs):
         if not args and not kwargs.get("optimizer_init", {}):
@@ -116,6 +118,10 @@ class CustomTask(Task):
             metrics["acc"](y_hat, y)
 
         return output
+
+    @torch.no_grad()
+    def predict_step(self, batch, *args, **kwargs):
+        return {"result": self(batch["img"])}
 
 
 class DummyDataset(Dataset):
@@ -155,6 +161,9 @@ class DummyDM(pl.LightningDataModule, SupportsDatasetNames):
         return self._dataloader
 
     def test_dataloader(self):
+        return self._dataloader
+
+    def predict_dataloader(self):
         return self._dataloader
 
     @property
