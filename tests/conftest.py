@@ -3,6 +3,7 @@
 
 from copy import copy, deepcopy
 from functools import partial
+from typing import Any, Dict, Optional
 
 import pytest
 import pytorch_lightning as pl
@@ -82,15 +83,35 @@ DEFAULT_OPTIMIZER_INIT = {
 @TASKS(name="custom-task", override=True)
 @TASKS(name="custom-task2", override=True)
 class CustomTask(Task):
-    def __init__(self, *args, **kwargs):
-        if not args and not kwargs.get("optimizer_init", {}):
-            kwargs.setdefault("optimizer_init", {}).update(DEFAULT_OPTIMIZER_INIT)
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        optimizer_init: Dict[str, Any] = {},
+        lr_scheduler_init: Dict[str, Any] = {},
+        lr_scheduler_interval: str = "epoch",
+        lr_scheduler_monitor: str = "train/total_loss_epoch",
+        named_datasets: bool = False,
+        checkpoint: Optional[str] = None,
+        strict_checkpoint: bool = True,
+        log_train_metrics_interval: int = 1,
+        log_train_metrics_on_epoch: bool = False,
+    ):
+        super().__init__(
+            optimizer_init,
+            lr_scheduler_init,
+            lr_scheduler_interval,
+            lr_scheduler_monitor,
+            named_datasets,
+            checkpoint,
+            strict_checkpoint,
+            log_train_metrics_interval,
+            log_train_metrics_on_epoch,
+        )
         self.backbone = nn.Sequential(
             nn.Conv2d(3, 16, 3),
             nn.AdaptiveAvgPool2d((1, 1)),
         )
         self.head = nn.Linear(16, 10)
+        self.save_hyperparameters()
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.backbone(x)
@@ -179,7 +200,7 @@ class DummyDM(pl.LightningDataModule, SupportsDatasetNames):
 
 @pytest.fixture
 def task(logger):
-    task = CustomTask()
+    task = CustomTask(optimizer_init=DEFAULT_OPTIMIZER_INIT)
     trainer = pl.Trainer(logger=logger)
     task.trainer = trainer
     # NOTE: yield here to weakref to logger being gc'ed
