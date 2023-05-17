@@ -12,7 +12,7 @@ import yaml
 from deep_helpers.cli import main as cli_main
 from deep_helpers.structs import Mode
 from deep_helpers.testing import checkpoint_factory
-from tests.conftest import CustomTask
+from tests.conftest import DEFAULT_OPTIMIZER_INIT, CustomTask
 
 
 class TestTask:
@@ -89,7 +89,7 @@ class TestTask:
             },
             "model": {
                 "class_path": f"tests.conftest.{task.__class__.__name__}",
-                "init_args": {},
+                "init_args": {"optimizer_init": DEFAULT_OPTIMIZER_INIT},
             },
             "data": {
                 "class_path": f"tests.conftest.{datamodule().__class__.__name__}",

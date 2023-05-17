@@ -143,7 +143,6 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.strict_checkpoint = strict_checkpoint
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
-        self.save_hyperparameters()
 
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:
