@@ -128,6 +128,7 @@ class TestTask:
                     "batch_size": 4,
                 },
             },
+            "compile": True,
         }
 
         config = {
