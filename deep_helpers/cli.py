@@ -2,12 +2,23 @@
 # -*- coding: utf-8 -*-
 
 import logging
+from typing import cast
 
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 from pytorch_lightning.cli import LightningArgumentParser, LightningCLI
 
 from .tasks import Task
+
+
+def try_compile_model(model: nn.Module) -> nn.Module:
+    try:
+        logging.info(f"Compiling {model.__class__.__name__}...")
+        model = cast(nn.Module, torch.compile(model))  # type: ignore
+    except Exception as e:
+        logging.exception(f"Failed to compile {model.__class__.__name__}.", exc_info=e)
+    return model
 
 
 class CLI(LightningCLI):
@@ -19,13 +30,9 @@ class CLI(LightningCLI):
         parser.add_argument("--compile", default=False, action="store_true")
 
     def fit(self, model, **kwargs):
-        try:
-            logging.info("Compiling model...")
-            model = torch.compile(model)
-        except Exception as e:
-            logging.exception("Failed to compile model, proceeding with uncompiled model.", exc_info=e)
-        assert isinstance(model, pl.LightningModule)
-        self.trainer.fit(model, **kwargs)
+        if self.config.fit.compile:
+            try_compile_model(model)
+        self.trainer.fit(cast(pl.LightningModule, model), **kwargs)
 
 
 def main():

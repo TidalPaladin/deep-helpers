@@ -269,7 +269,7 @@ summary = "Lightweight pipelining with Python functions"
 
 [[package]]
 name = "jsonargparse"
-version = "4.21.1"
+version = "4.21.2"
 requires_python = ">=3.6"
 summary = "Implement minimal boilerplate CLIs derived from type hints and parse from command line, config files and environment variables."
 dependencies = [
@@ -278,25 +278,25 @@ dependencies = [
 
 [[package]]
 name = "jsonargparse"
-version = "4.21.1"
+version = "4.21.2"
 extras = ["signatures"]
 requires_python = ">=3.6"
 summary = "Implement minimal boilerplate CLIs derived from type hints and parse from command line, config files and environment variables."
 dependencies = [
     "docstring-parser>=0.15",
-    "jsonargparse==4.21.1",
+    "jsonargparse==4.21.2",
     "jsonargparse[typing-extensions]",
     "typeshed-client>=2.1.0",
 ]
 
 [[package]]
 name = "jsonargparse"
-version = "4.21.1"
+version = "4.21.2"
 extras = ["typing-extensions"]
 requires_python = ">=3.6"
 summary = "Implement minimal boilerplate CLIs derived from type hints and parse from command line, config files and environment variables."
 dependencies = [
-    "jsonargparse==4.21.1",
+    "jsonargparse==4.21.2",
     "typing-extensions>=3.10.0.0; python_version < \"3.10\"",
 ]
 
@@ -562,7 +562,7 @@ summary = "pyparsing module - Classes and methods to define and execute parsing 
 
 [[package]]
 name = "pytest"
-version = "7.3.1"
+version = "7.3.2"
 requires_python = ">=3.7"
 summary = "pytest: simple powerful testing with Python"
 dependencies = [
@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "pytorch-lightning"
-version = "2.0.2"
+version = "2.0.3"
 requires_python = ">=3.8"
 summary = "PyTorch Lightning is the lightweight PyTorch wrapper for ML researchers. Scale your models. Write less boilerplate."
 dependencies = [
@@ -819,7 +819,7 @@ summary = "HTTP library with thread-safe connection pooling, file post, and more
 
 [[package]]
 name = "wandb"
-version = "0.15.3"
+version = "0.15.4"
 requires_python = ">=3.6"
 summary = "A CLI and library for interacting with the Weights and Biases API."
 dependencies = [
@@ -1376,9 +1376,9 @@ content_hash = "sha256:eace626f02429a8d4a2fcb42df546896510aea0cd798589894dd8278d
     {url = "https://files.pythonhosted.org/packages/45/dd/a5435a6902d6315241c48a5343e6e6675b007e05d3738ed97a7a47864e53/joblib-1.2.0.tar.gz", hash = "sha256:e1cee4a79e4af22881164f218d4311f60074197fb707e082e803b61f6d137018"},
     {url = "https://files.pythonhosted.org/packages/91/d4/3b4c8e5a30604df4c7518c562d4bf0502f2fa29221459226e140cf846512/joblib-1.2.0-py3-none-any.whl", hash = "sha256:091138ed78f800342968c523bdde947e7a305b8594b910a0fea2ab83c3c6d385"},
 ]
-"jsonargparse 4.21.1" = [
-    {url = "https://files.pythonhosted.org/packages/80/b9/2c60b8d3cb70a154ceb050e5cc6d591ba919120ee1c710190a02659377de/jsonargparse-4.21.1.tar.gz", hash = "sha256:c70700a33c16038c6b71d6ddbd7dcc58cf07865f5e0a0f0a7406b90f3a306bcc"},
-    {url = "https://files.pythonhosted.org/packages/db/26/bd50729ce4423f59f1eab3db2526fbaf4677ac9f49fc0d19ffc1308adc3b/jsonargparse-4.21.1-py3-none-any.whl", hash = "sha256:dffb6a446d2a7d3b78288489b406d77f5bf83c9ea10e7cfce43a1029fbbde313"},
+"jsonargparse 4.21.2" = [
+    {url = "https://files.pythonhosted.org/packages/ab/a7/699f9764ddca76ba46133ff3826e71d09ebaa3272748a968a3be04f371b0/jsonargparse-4.21.2.tar.gz", hash = "sha256:d8354450d131e557f318568369008bde0bf2506f6fa61cc8a0a3217320db882c"},
+    {url = "https://files.pythonhosted.org/packages/ba/02/ff9a37c980450a1bf2c33c3331f47e3373f4d0a45ed24640f8698a64533e/jsonargparse-4.21.2-py3-none-any.whl", hash = "sha256:291f4a9902ba7eb2412f3182438b348acc3c98a064b992dc8a16b93a10143f51"},
 ]
 "kiwisolver 1.4.4" = [
     {url = "https://files.pythonhosted.org/packages/03/93/11790e8e81b89acd3a1c8a6b501f8a05b1c41beee0990582699cdda29557/kiwisolver-1.4.4-cp37-cp37m-win_amd64.whl", hash = "sha256:03baab2d6b4a54ddbb43bba1a3a2d1627e82d205c5cf8f4c924dc49284b87166"},
@@ -1891,9 +1891,9 @@ content_hash = "sha256:eace626f02429a8d4a2fcb42df546896510aea0cd798589894dd8278d
     {url = "https://files.pythonhosted.org/packages/6c/10/a7d0fa5baea8fe7b50f448ab742f26f52b80bfca85ac2be9d35cdd9a3246/pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},
     {url = "https://files.pythonhosted.org/packages/71/22/207523d16464c40a0310d2d4d8926daffa00ac1f5b1576170a32db749636/pyparsing-3.0.9.tar.gz", hash = "sha256:2b020ecf7d21b687f219b71ecad3631f644a47f01403fa1d1036b0c6416d70fb"},
 ]
-"pytest 7.3.1" = [
-    {url = "https://files.pythonhosted.org/packages/1b/d1/72df649a705af1e3a09ffe14b0c7d3be1fd730da6b98beb4a2ed26b8a023/pytest-7.3.1-py3-none-any.whl", hash = "sha256:3799fa815351fea3a5e96ac7e503a96fa51cc9942c3753cda7651b93c1cfa362"},
-    {url = "https://files.pythonhosted.org/packages/ec/d9/36b65598f3d19d0a14d13dc87ad5fa42869ae53bb7471f619a30eaabc4bf/pytest-7.3.1.tar.gz", hash = "sha256:434afafd78b1d78ed0addf160ad2b77a30d35d4bdf8af234fe621919d9ed15e3"},
+"pytest 7.3.2" = [
+    {url = "https://files.pythonhosted.org/packages/58/2a/07c65fdc40846ecb8a9dcda2c38fcb5a06a3e39d08d4a4960916431951cb/pytest-7.3.2.tar.gz", hash = "sha256:ee990a3cc55ba808b80795a79944756f315c67c12b56abd3ac993a7b8c17030b"},
+    {url = "https://files.pythonhosted.org/packages/7a/d0/de969198293cdea22b3a6fb99a99aeeddb7b3827f0823b33c5dc0734bbe5/pytest-7.3.2-py3-none-any.whl", hash = "sha256:cdcbd012c9312258922f8cd3f1b62a6580fdced17db6014896053d47cddf9295"},
 ]
 "pytest-cov 4.1.0" = [
     {url = "https://files.pythonhosted.org/packages/7a/15/da3df99fd551507694a9b01f512a2f6cf1254f33601605843c3775f39460/pytest-cov-4.1.0.tar.gz", hash = "sha256:3904b13dfbfec47f003b8e77fd5b589cd11904a21ddf1ab38a64f204d6a10ef6"},
@@ -1907,9 +1907,9 @@ content_hash = "sha256:eace626f02429a8d4a2fcb42df546896510aea0cd798589894dd8278d
     {url = "https://files.pythonhosted.org/packages/36/7a/87837f39d0296e723bb9b62bbb257d0355c7f6128853c78955f57342a56d/python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"},
     {url = "https://files.pythonhosted.org/packages/4c/c4/13b4776ea2d76c115c1d1b84579f3764ee6d57204f6be27119f13a61d0a9/python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
 ]
-"pytorch-lightning 2.0.2" = [
-    {url = "https://files.pythonhosted.org/packages/1d/6e/1c14cadb2f8357111042f850a689ef95f49028c5c14722b0f08f2d5bef8a/pytorch-lightning-2.0.2.tar.gz", hash = "sha256:b37a3677a65cda920260de3899ea9dfdd221b0a2d838a0439e31bd927efa61f4"},
-    {url = "https://files.pythonhosted.org/packages/9b/b3/7ff4157dc91c82a8bb24db019575e5258999c1d01ac0872bb3c32ab1ef82/pytorch_lightning-2.0.2-py3-none-any.whl", hash = "sha256:e65a99f0ae53d70c35ec821225241387ec8bb01920003ab8f2d49e753d8a84d0"},
+"pytorch-lightning 2.0.3" = [
+    {url = "https://files.pythonhosted.org/packages/19/da/08cc571a5ec162b4df27958d7680448b7a2ec04abd658726872fc016913b/pytorch_lightning-2.0.3-py3-none-any.whl", hash = "sha256:9d7f0bc1c5264e727f5be4fdce30106b8e68d622c69e8f4b4182d3646b8f22c2"},
+    {url = "https://files.pythonhosted.org/packages/52/5b/90f84388c18711df3addb72939db07c551365f1d628d6567a4246b3dc966/pytorch-lightning-2.0.3.tar.gz", hash = "sha256:3b12080f6b3205cc7aaa42a1e08b221007b999a63c0032d0090f29ff8d0d7221"},
 ]
 "pytz 2022.7.1" = [
     {url = "https://files.pythonhosted.org/packages/03/3e/dc5c793b62c60d0ca0b7e58f1fdd84d5aaa9f8df23e7589b39cc9ce20a03/pytz-2022.7.1.tar.gz", hash = "sha256:01a0681c4b9684a28304615eba55d1ab31ae00bf68ec157ec3708a8182dbbcd0"},
@@ -2179,9 +2179,9 @@ content_hash = "sha256:eace626f02429a8d4a2fcb42df546896510aea0cd798589894dd8278d
     {url = "https://files.pythonhosted.org/packages/21/79/6372d8c0d0641b4072889f3ff84f279b738cd8595b64c8e0496d4e848122/urllib3-1.26.15.tar.gz", hash = "sha256:8a388717b9476f934a21484e8c8e61875ab60644d29b9b39e11e4b9dc1c6b305"},
     {url = "https://files.pythonhosted.org/packages/7b/f5/890a0baca17a61c1f92f72b81d3c31523c99bec609e60c292ea55b387ae8/urllib3-1.26.15-py2.py3-none-any.whl", hash = "sha256:aa751d169e23c7479ce47a0cb0da579e3ede798f994f5816a74e4f4500dcea42"},
 ]
-"wandb 0.15.3" = [
-    {url = "https://files.pythonhosted.org/packages/50/30/4b9e4ed1552731721366004c1b0b0bdf808b182ad027ee806fc2bab212db/wandb-0.15.3-py3-none-any.whl", hash = "sha256:f9e0b8cd53a3564dc8e54967c251860bd023f0ee2a450c4407fe97f771dcfa9e"},
-    {url = "https://files.pythonhosted.org/packages/d8/9f/5509e520da2c04ee4322f946b1a6d005440c749c15165c44a7651910eb1d/wandb-0.15.3.tar.gz", hash = "sha256:f9325901e0dff8e9a471d4a3e2102aa7bc26c7171afaf21a978ffb2cc7df4b3c"},
+"wandb 0.15.4" = [
+    {url = "https://files.pythonhosted.org/packages/89/eb/a39c835871caca0173f526e321336a1a2b0961e38bf9b71b7213b651e3c8/wandb-0.15.4-py3-none-any.whl", hash = "sha256:9018565177e1be14d7d0dd470c583206031c6027c32a98c57fa3bb83955143d7"},
+    {url = "https://files.pythonhosted.org/packages/cd/11/162531c0adae37815e7e5a7ae7a9e483d679444327a17d0d26e56dd95ce2/wandb-0.15.4.tar.gz", hash = "sha256:472daaaa1a4e29a46407a85fd77aadb724c91d87dfe2c37cd82ef77be2257011"},
 ]
 "wheel 0.40.0" = [
     {url = "https://files.pythonhosted.org/packages/61/86/cc8d1ff2ca31a312a25a708c891cf9facbad4eae493b3872638db6785eb5/wheel-0.40.0-py3-none-any.whl", hash = "sha256:d236b20e7cb522daf2390fa84c55eea81c5c30190f90f29ae2ca1ad8355bf247"},
