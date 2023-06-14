@@ -5,7 +5,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Callable, ClassVar, Dict, Generic, Iterator, Optional, Type, TypedDict, TypeVar, Union, cast
+from typing import Any, ClassVar, Dict, Generic, Iterator, Optional, Set, Type, TypedDict, TypeVar, Union, cast
 
 import pytorch_lightning as pl
 import torch
@@ -44,14 +44,46 @@ class CustomOptimizerMixin(ABC):
     lr_scheduler_init: Dict[str, Any]
     lr_scheduler_interval: str
     lr_scheduler_monitor: str
+    weight_decay_exemptions: Set[str] = set()
 
-    parameters: Callable[..., Iterator[nn.Parameter]]
+    def _params_weight_decay(self) -> Iterator[nn.Parameter]:
+        return (
+            param
+            for module in cast(nn.Module, self).modules()
+            for param_name, param in module.named_parameters()
+            if self._needs_weight_decay(module, param_name)
+        )
+
+    def _params_no_weight_decay(self) -> Iterator[nn.Parameter]:
+        return (
+            param
+            for module in cast(nn.Module, self).modules()
+            for param_name, param in module.named_parameters()
+            if not self._needs_weight_decay(module, param_name)
+        )
+
+    def _needs_weight_decay(self, module: nn.Module, param_name: str) -> bool:
+        return not (
+            module.__class__.__name__ in self.weight_decay_exemptions
+            or any(part in self.weight_decay_exemptions for part in param_name.split("."))
+        )
 
     def configure_optimizers(self) -> Dict[str, Any]:
         if not self.optimizer_init:
             raise ValueError("No optimizer specified")
         result: Dict[str, Any] = {}
-        optimizer = instantiate_class(self.parameters(), self.optimizer_init)
+        weight_decay = self.optimizer_init.get("init_args", {}).get("weight_decay", 0.0)
+        params = set(cast(nn.Module, self).parameters())
+        params_no_weight_decay = set(self._params_no_weight_decay())
+        params = params - params_no_weight_decay
+        optimizer = instantiate_class(
+            [
+                {"params": list(params), "weight_decay": weight_decay},
+                {"params": list(params_no_weight_decay), "weight_decay": 0.0},
+            ],
+            self.optimizer_init,
+        )
+        optimizer.param_groups = [g for g in optimizer.param_groups if g["params"]]
         result["optimizer"] = optimizer
 
         if self.lr_scheduler_init:
@@ -130,6 +162,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
+        weight_decay_exemptions: Set[str] = set(),
     ):
         super(Task, self).__init__()
         self.state = State()
@@ -143,6 +176,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.strict_checkpoint = strict_checkpoint
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
+        self.weight_decay_exemptions = set(weight_decay_exemptions)
 
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:

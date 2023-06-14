@@ -32,6 +32,37 @@ class TestTask:
         assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
         assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
 
+    @pytest.mark.parametrize(
+        "weight_decay_exemptions,groups",
+        [
+            (set(), 1),
+            ({"bias"}, 2),
+            ({"Conv2d"}, 2),
+        ],
+    )
+    def test_weight_decay_filter(self, weight_decay_exemptions, groups):
+        optimizer_init = {"class_path": "torch.optim.AdamW", "init_args": {"lr": 0.001, "weight_decay": 0.1}}
+        lr_scheduler_init = {
+            "class_path": "torch.optim.lr_scheduler.StepLR",
+            "init_args": {"step_size": 10, "gamma": 0.1},
+        }
+        lr_scheduler_interval = "epoch"
+        lr_scheduler_monitor = "val_loss"
+
+        task = CustomTask(
+            optimizer_init,
+            lr_scheduler_init,
+            lr_scheduler_interval,
+            lr_scheduler_monitor,
+            weight_decay_exemptions=weight_decay_exemptions,
+        )
+        result = task.configure_optimizers()
+        assert isinstance(result["optimizer"], torch.optim.AdamW)
+        assert len(result["optimizer"].param_groups) == groups
+        exp_params = sum(1 for _ in task.parameters())
+        actual_params = sum(1 for pg in result["optimizer"].param_groups for p in pg["params"])
+        assert exp_params == actual_params
+
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test"])
     @pytest.mark.parametrize(

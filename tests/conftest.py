@@ -3,7 +3,7 @@
 
 from copy import copy, deepcopy
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 import pytest
 import pytorch_lightning as pl
@@ -94,6 +94,7 @@ class CustomTask(Task):
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
+        weight_decay_exemptions: Set[str] = set(),
     ):
         super().__init__(
             optimizer_init,
@@ -105,6 +106,7 @@ class CustomTask(Task):
             strict_checkpoint,
             log_train_metrics_interval,
             log_train_metrics_on_epoch,
+            weight_decay_exemptions,
         )
         self.backbone = nn.Sequential(
             nn.Conv2d(3, 16, 3),
