@@ -155,8 +155,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self,
         optimizer_init: Dict[str, Any] = {},
         lr_scheduler_init: Dict[str, Any] = {},
-        lr_scheduler_interval: str = "epoch",
-        lr_scheduler_monitor: str = "train/total_loss_epoch",
+        lr_interval: str = "epoch",
+        lr_monitor: str = "train/total_loss_epoch",
         named_datasets: bool = False,
         checkpoint: Optional[str] = None,
         strict_checkpoint: bool = True,
@@ -169,8 +169,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.metrics = MetricStateCollection()
         self.optimizer_init = optimizer_init
         self.lr_scheduler_init = lr_scheduler_init
-        self.lr_scheduler_interval = lr_scheduler_interval
-        self.lr_scheduler_monitor = lr_scheduler_monitor
+        self.lr_scheduler_interval = lr_interval
+        self.lr_scheduler_monitor = lr_monitor
         self.named_datasets = named_datasets
         self.checkpoint = checkpoint
         self.strict_checkpoint = strict_checkpoint
