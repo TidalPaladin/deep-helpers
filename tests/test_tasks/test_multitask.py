@@ -89,21 +89,21 @@ class TestMultiTask:
             "class_path": "torch.optim.lr_scheduler.StepLR",
             "init_args": {"step_size": 10, "gamma": 0.1},
         }
-        lr_scheduler_interval = "epoch"
-        lr_scheduler_monitor = "val_loss"
+        lr_interval = "epoch"
+        lr_monitor = "val_loss"
 
         task = MultiTask(
             tasks=["custom-task"],
             optimizer_init=optimizer_init,
             lr_scheduler_init=lr_scheduler_init,
-            lr_scheduler_interval=lr_scheduler_interval,
-            lr_scheduler_monitor=lr_scheduler_monitor,
+            lr_interval=lr_interval,
+            lr_monitor=lr_monitor,
         )
         result = task.configure_optimizers()
         assert isinstance(result["optimizer"], torch.optim.Adam)
         assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
-        assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
-        assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
+        assert result["lr_scheduler"]["monitor"] == lr_monitor
+        assert result["lr_scheduler"]["interval"] == lr_interval
 
     @pytest.mark.parametrize(
         "hook",
