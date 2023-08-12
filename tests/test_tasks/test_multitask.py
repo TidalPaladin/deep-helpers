@@ -10,7 +10,7 @@ import yaml
 
 from deep_helpers.callbacks import LoggingCallback, MultiTaskCallbackWrapper
 from deep_helpers.cli import main as cli_main
-from deep_helpers.tasks import MultiTask, Task
+from deep_helpers.tasks import TASKS, MultiTask, Task
 
 
 class DummyCallback(LoggingCallback):
@@ -45,6 +45,12 @@ def multitask(logger):
 
 class TestMultiTask:
     def test_len(self, multitask):
+        assert len(multitask) == 2
+
+    def test_task_class_input(self):
+        task = TASKS.get("custom-task").instantiate_with_metadata().fn
+        multitask = MultiTask(tasks=["custom-task", ("custom-task2", task)])
+        assert isinstance(multitask, MultiTask)
         assert len(multitask) == 2
 
     @pytest.mark.parametrize(

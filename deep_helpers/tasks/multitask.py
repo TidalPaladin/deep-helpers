@@ -60,6 +60,16 @@ class ForwardHooks(ABCMeta):
         return recurse_on_tasks
 
 
+def _get_task(key: Union[str, Tuple[str, Task]], **kwargs) -> Tuple[str, Task]:
+    if isinstance(key, str):
+        return key, cast(Task, TASKS.get(key).instantiate_with_metadata(**kwargs).fn)
+    else:
+        name, task = key
+        if not isinstance(task, Task):
+            raise TypeError(f"Expected Task, got {type(task)}")
+        return name, task
+
+
 class MultiTask(Task, metaclass=ForwardHooks):
     r"""A multi-task wrapper around multiple contained tasks.
 
@@ -76,14 +86,14 @@ class MultiTask(Task, metaclass=ForwardHooks):
 
     def __init__(
         self,
-        tasks: List[Union[str, Task]],
+        tasks: List[Union[str, Tuple[str, Task]]],
         checkpoint: Optional[str] = None,
         strict_checkpoint: bool = True,
         cycle: bool = True,
         **kwargs,
     ):
         super().__init__(checkpoint=checkpoint, strict_checkpoint=strict_checkpoint, **kwargs)
-        self._tasks = nn.ModuleDict({t: cast(Task, TASKS.get(t).instantiate_with_metadata(**kwargs).fn) for t in tasks})
+        self._tasks = nn.ModuleDict({k: v for k, v in (_get_task(task, **kwargs) for task in tasks)})
         self.cycle = cycle
 
     def __len__(self) -> int:
