@@ -205,11 +205,6 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics: Optional[tm.MetricCollection] = None,
         add_dataloader_idx: bool = False,
     ) -> None:
-        # Manually log loss, PyTorch Lightning 1.9 doesn't do this for us anymore
-        self.attached_task.log(
-            "loss", cast(Dict[str, Any], output)["loss"], on_step=True, on_epoch=False, prog_bar=True
-        )
-
         # Log things placed into `output` under the key `log` unless they are metrics.
         # Metrics require special handling and will be logged separately.
         scalars_to_log = {
