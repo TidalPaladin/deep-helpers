@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+from pathlib import Path
 
 import pytest
 import pytorch_lightning as pl
@@ -132,6 +133,31 @@ class TestMultiTask:
         # We just want to make sure that the hook is called without error.
         # This hook is manually subclassed in MultiTask
         multitask.setup("stage")
+
+    def test_checkpoint_getter_setter(self, multitask):
+        # Test checkpoint setter
+        checkpoint_path = "test_checkpoint_path"
+        multitask.checkpoint = checkpoint_path
+        assert multitask.checkpoint == Path(checkpoint_path)
+        for _, task in multitask:
+            assert task.checkpoint == Path(checkpoint_path)
+
+    def test_strict_checkpoint_getter_setter(self, multitask):
+        multitask.strict_checkpoint = True
+        assert multitask.strict_checkpoint
+        for _, task in multitask:
+            assert task.strict_checkpoint
+
+    def test_setup_loads_checkpoint(self, mocker, multitask, tmp_path):
+        checkpoint = tmp_path / "checkpoint_path"
+        checkpoint.touch()
+        multitask.checkpoint = checkpoint
+        mocker.patch("torch.load", return_value={})
+        try:
+            multitask.setup("stage")
+        except KeyError:
+            pass
+        torch.load.assert_called_with(checkpoint, map_location="cpu")
 
     @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
