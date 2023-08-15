@@ -172,7 +172,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.lr_scheduler_interval = lr_interval
         self.lr_scheduler_monitor = lr_monitor
         self.named_datasets = named_datasets
-        self.checkpoint = checkpoint
+        self.checkpoint = Path(checkpoint) if checkpoint is not None else None
         self.strict_checkpoint = strict_checkpoint
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
@@ -287,6 +287,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             self._safe_load_checkpoint()
 
     def _safe_load_checkpoint(self) -> None:
+        assert self.checkpoint is not None
         checkpoint_path = Path(self.checkpoint)
         if not checkpoint_path.is_file():
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")  # pragma: no cover
