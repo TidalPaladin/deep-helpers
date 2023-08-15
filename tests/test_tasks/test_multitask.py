@@ -150,14 +150,14 @@ class TestMultiTask:
 
     def test_setup_loads_checkpoint(self, mocker, multitask, tmp_path):
         checkpoint = tmp_path / "checkpoint_path"
-        checkpoint.touch()
+        cp = {"state_dict": multitask.state_dict()}
+        torch.save(cp, checkpoint)
         multitask.checkpoint = checkpoint
-        mocker.patch("torch.load", return_value={})
-        try:
-            multitask.setup("stage")
-        except KeyError:
-            pass
-        torch.load.assert_called_with(checkpoint, map_location="cpu")
+        spy = mocker.spy(multitask, "load_state_dict")
+        spy2 = mocker.spy(torch, "load")
+        multitask.setup("stage")
+        spy.assert_called_once()
+        spy2.assert_called_once_with(checkpoint, map_location="cpu")
 
     @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
