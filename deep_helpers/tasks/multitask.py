@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from abc import ABCMeta
+from pathlib import Path
 from typing import Any, Dict, Final, Iterator, List, Optional, Tuple, TypeVar, Union, cast
 
 import torch.nn as nn
@@ -92,9 +93,32 @@ class MultiTask(Task, metaclass=ForwardHooks):
         cycle: bool = True,
         **kwargs,
     ):
-        super().__init__(checkpoint=checkpoint, strict_checkpoint=strict_checkpoint, **kwargs)
+        self._tasks = {}
+        super().__init__(**kwargs)
         self._tasks = nn.ModuleDict({k: v for k, v in (_get_task(task, **kwargs) for task in tasks)})
         self.cycle = cycle
+        self.checkpoint = checkpoint
+        self.strict_checkpoint = strict_checkpoint
+
+    @property
+    def checkpoint(self) -> Optional[Path]:
+        return Path(self._checkpoint) if self._checkpoint is not None else None
+
+    @checkpoint.setter
+    def checkpoint(self, value: Optional[Union[str, Path]]) -> None:
+        self._checkpoint = Path(value) if isinstance(value, str) else value
+        for task in self._tasks.values():
+            task.checkpoint = self._checkpoint
+
+    @property
+    def strict_checkpoint(self) -> bool:
+        return self._strict_checkpoint
+
+    @strict_checkpoint.setter
+    def strict_checkpoint(self, value: bool) -> None:
+        self._strict_checkpoint = value
+        for task in self._tasks.values():
+            task.strict_checkpoint = self._strict_checkpoint
 
     def __len__(self) -> int:
         return len(self._tasks)
