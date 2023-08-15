@@ -156,13 +156,13 @@ class MultiTask(Task, metaclass=ForwardHooks):
 
     def update_attribute(self, attr_name: str, val: nn.Module) -> None:
         r"""Update an attribute in all of the contained tasks."""
-        for task in self:
+        for _, task in self:
             if hasattr(task, attr_name):
                 setattr(task, attr_name, val)
 
     def find_attribute(self, attr_name: str) -> nn.Module:
         r"""Find an attribute in any of the contained tasks. Returns the first matching attribute."""
-        for task in self:
+        for _, task in self:
             if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
                 return val
         raise AttributeError(attr_name)

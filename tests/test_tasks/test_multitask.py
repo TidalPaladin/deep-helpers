@@ -159,6 +159,22 @@ class TestMultiTask:
         spy.assert_called_once()
         spy2.assert_called_once_with(checkpoint, map_location="cpu")
 
+    def test_find_attribute(self, multitask):
+        linear_layer = torch.nn.Linear(10, 10)
+        multitask._tasks["custom-task"].linear_layer = linear_layer
+        found_attr = multitask.find_attribute("linear_layer")
+        assert found_attr == linear_layer
+
+    def test_share_attribute(self, multitask):
+        linear_layer = torch.nn.Linear(10, 10)
+        linear_layer2 = torch.nn.Linear(10, 10)
+        multitask._tasks["custom-task"].linear_layer = linear_layer
+        multitask._tasks["custom-task2"].linear_layer = linear_layer2
+        multitask.share_attribute("linear_layer")
+        for _, task in multitask:
+            assert hasattr(task, "linear_layer")
+            assert task.linear_layer is linear_layer
+
     @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test", "predict"])
