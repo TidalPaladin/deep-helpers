@@ -139,8 +139,14 @@ class MultiTask(Task, metaclass=ForwardHooks):
             # Update the trainer reference in each task
             task.trainer = self.trainer
 
-            # Run setup on each task
+            # Run setup on each task.
+            # Enure we don't load the checkpoint for each task.
+            task.checkpoint = None
             task.setup(stage)
+            task.checkpoint = self.checkpoint
+
+        if self.checkpoint is not None:
+            self._safe_load_checkpoint()
 
     def share_attribute(self, attr_name: str) -> None:
         r"""Share an attribute across all of the contained tasks."""
