@@ -67,10 +67,8 @@ class MultiTaskCallbackWrapper(Callback):
     def should_run_on_task(self, pl_module: MultiTask, batch_idx: int) -> bool:
         return self.tasks is None or self.identify_task(pl_module, batch_idx) in self.tasks
 
-    @staticmethod
-    def batch_start_wrapper(func) -> Any:
+    def batch_start_wrapper(self, func) -> Any:
         def on_batch_start(
-            self,
             trainer: pl.Trainer,
             pl_module: MultiTask,
             batch: Any,
@@ -85,10 +83,8 @@ class MultiTaskCallbackWrapper(Callback):
 
         return on_batch_start
 
-    @staticmethod
-    def batch_end_wrapper(func) -> Any:
+    def batch_end_wrapper(self, func) -> Any:
         def on_batch_end(
-            self,
             trainer: pl.Trainer,
             pl_module: MultiTask,
             outputs: Any,

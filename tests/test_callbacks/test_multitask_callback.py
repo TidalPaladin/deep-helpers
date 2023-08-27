@@ -51,7 +51,6 @@ class TestMultiTaskCallbackWrapper:
         wrapper = MultiTaskCallbackWrapper(callback, {key})
         batch = mocker.MagicMock(name="batch")
         cast(Any, wrapper).on_train_batch_start(
-            wrapper,
             multitask.trainer,
             multitask,
             batch,
@@ -85,7 +84,6 @@ class TestMultiTaskCallbackWrapper:
         batch = mocker.MagicMock(name="batch")
         output = mocker.MagicMock(name="output")
         cast(Any, wrapper).on_train_batch_end(
-            wrapper,
             multitask.trainer,
             multitask,
             output,
