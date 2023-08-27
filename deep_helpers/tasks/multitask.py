@@ -154,24 +154,24 @@ class MultiTask(Task, metaclass=ForwardHooks):
         setattr(self, attr_name, proto)
         self.update_attribute(attr_name, proto)
 
-    def update_attribute(self, attr_name: str, val: nn.Module) -> None:
+    def update_attribute(self, attr_name: str, val: Union[nn.Module, nn.Parameter]) -> None:
         r"""Update an attribute in all of the contained tasks."""
         for _, task in self:
             if hasattr(task, attr_name):
                 setattr(task, attr_name, val)
 
-    def find_attribute(self, attr_name: str) -> nn.Module:
+    def find_attribute(self, attr_name: str) -> Union[nn.Module, nn.Parameter]:
         r"""Find an attribute in any of the contained tasks. Returns the first matching attribute."""
         for _, task in self:
-            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
+            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), (nn.Module, nn.Parameter)):
                 return val
         raise AttributeError(attr_name)
 
-    def find_all_attributes(self, attr_name: str) -> List[nn.Module]:
+    def find_all_attributes(self, attr_name: str) -> List[Union[nn.Module, nn.Parameter]]:
         r"""Find an attribute in any of the contained tasks. Returns all matching attributes."""
-        result: List[nn.Module] = []
+        result: List[Union[nn.Module, nn.Parameter]] = []
         for _, task in self:
-            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
+            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), (nn.Module, nn.Parameter)):
                 result.append(val)
         return result
 
