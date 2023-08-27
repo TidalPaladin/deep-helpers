@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 import yaml
 
 from deep_helpers.callbacks import LoggingCallback, MultiTaskCallbackWrapper
@@ -165,15 +166,20 @@ class TestMultiTask:
         found_attr = multitask.find_attribute("linear_layer")
         assert found_attr == linear_layer
 
-    def test_share_attribute(self, multitask):
-        linear_layer = torch.nn.Linear(10, 10)
-        linear_layer2 = torch.nn.Linear(10, 10)
-        multitask._tasks["custom-task"].linear_layer = linear_layer
-        multitask._tasks["custom-task2"].linear_layer = linear_layer2
-        multitask.share_attribute("linear_layer")
+    @pytest.mark.parametrize("attr, attr_type", [("linear_layer", nn.Module), ("weight", nn.Parameter)])
+    def test_share_attribute(self, multitask, attr, attr_type):
+        if attr_type == nn.Module:
+            attr_instance = torch.nn.Linear(10, 10)
+            copy = torch.nn.Linear(10, 10)
+        else:  # attr_type == nn.Parameter
+            attr_instance = nn.Parameter(torch.randn(10, 10))
+            copy = nn.Parameter(torch.randn(10, 10))
+        multitask._tasks["custom-task"].__setattr__(attr, attr_instance)
+        multitask._tasks["custom-task2"].__setattr__(attr, copy)
+        multitask.share_attribute(attr)
         for _, task in multitask:
-            assert hasattr(task, "linear_layer")
-            assert task.linear_layer is linear_layer
+            assert hasattr(task, attr)
+            assert task.__getattr__(attr) is attr_instance
 
     @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
