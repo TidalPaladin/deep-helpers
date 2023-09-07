@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing import Any, Dict
+import logging
+from typing import Any, Dict, cast
 
+import torch
 import torch.nn as nn
 from pytorch_lightning.utilities.rank_zero import rank_zero_only  # type: ignore
 
@@ -27,4 +29,22 @@ def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool =
             k: v for k, v in state_dict.items() if k in model_state_dict and v.shape == model_state_dict[k].shape
         }
         model.load_state_dict(checkpoint_state_dict, strict=False)
+    return model
+
+
+def try_compile_model(model: nn.Module) -> nn.Module:
+    """
+    Attempts to compile the given model. If the compilation fails, logs the exception and returns the uncompiled model.
+
+    Args:
+        model: The model to compile.
+
+    Returns:
+        The compiled model if successful, otherwise the original uncompiled model.
+    """
+    try:
+        logging.info(f"Compiling {model.__class__.__name__}...")
+        model = cast(nn.Module, torch.compile(model))  # type: ignore
+    except Exception as e:
+        logging.exception(f"Failed to compile {model.__class__.__name__}.", exc_info=e)
     return model

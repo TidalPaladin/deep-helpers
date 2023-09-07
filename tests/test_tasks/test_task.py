@@ -128,6 +128,7 @@ class TestTask:
                     "batch_size": 4,
                 },
             },
+            "compile": True,
         }
 
         config = {
@@ -145,10 +146,14 @@ class TestTask:
             stage,
         ]
 
+        compile = mocker.patch("deep_helpers.cli.try_compile_model")
+
         try:
             cli_main()
         except SystemExit as e:
             raise e.__context__ if e.__context__ is not None else e
+
+        compile.assert_called_once()
 
     @pytest.mark.parametrize("from_env", [False, True])
     def test_create(self, mocker, task, from_env):
