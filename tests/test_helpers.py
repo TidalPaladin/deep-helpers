@@ -31,6 +31,12 @@ def test_load_checkpoint(mocker, checkpoint, model, strict):
 
 
 class TestTryCompileModel:
+    def test_mock_compile(self, mocker):
+        m = mocker.patch("torch.compile", return_value=mocker.MagicMock(name="compiled_model"))
+        result = try_compile_model(nn.Linear(10, 10))
+        m.assert_called_once()
+        assert result is m.return_value
+
     @pytest.mark.parametrize(
         "model",
         [
@@ -38,12 +44,11 @@ class TestTryCompileModel:
             nn.Linear(3, 5),
         ],
     )
-    def test_compile(self, mocker, model):
+    def test_compile(self, mocker, model, caplog):
         spy = mocker.spy(torch, "compile")
-        in_type = type(model)
         model = try_compile_model(model)
         spy.assert_called_once()
-        assert isinstance(model, in_type)
+        assert "Exception" not in caplog.text
 
     def test_exception(self, mocker, caplog):
         model = nn.Linear(10, 10)
