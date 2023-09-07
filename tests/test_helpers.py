@@ -2,9 +2,11 @@
 # -*- coding: utf-8 -*-
 
 import pytest
+import torch
 import torch.nn as nn
 
 from deep_helpers import load_checkpoint
+from deep_helpers.helpers import try_compile_model
 
 
 @pytest.mark.parametrize(
@@ -26,3 +28,26 @@ def test_load_checkpoint(mocker, checkpoint, model, strict):
     state_dict = checkpoint.state_dict()
     model = load_checkpoint(model, state_dict, strict=strict)
     spy.assert_called_once()
+
+
+class TestTryCompileModel:
+    @pytest.mark.parametrize(
+        "model",
+        [
+            nn.Conv2d(3, 10, 3),
+            nn.Linear(3, 5),
+        ],
+    )
+    def test_compile(self, mocker, model):
+        spy = mocker.spy(torch, "compile")
+        in_type = type(model)
+        model = try_compile_model(model)
+        spy.assert_called_once()
+        assert isinstance(model, in_type)
+
+    def test_exception(self, mocker, caplog):
+        model = nn.Linear(10, 10)
+        mocker.patch("torch.compile", side_effect=Exception)
+        result = try_compile_model(model)
+        assert result is model
+        assert "Exception" in caplog.text
