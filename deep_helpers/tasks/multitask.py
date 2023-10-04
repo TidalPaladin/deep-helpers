@@ -8,7 +8,8 @@ import torch.nn as nn
 import torchmetrics as tm
 from pytorch_lightning.core.hooks import CheckpointHooks, ModelHooks
 
-from .task import TASKS, Task
+from ..structs import Mode
+from .task import TASKS, StateMixin, Task
 
 
 T = TypeVar("T")
@@ -51,6 +52,14 @@ class ForwardHooks(ABCMeta):
     def recursive_task_wrapper(funcname) -> Any:
         def recurse_on_tasks(self, *args, **kwargs):
             assert isinstance(self, MultiTask)
+
+            # Ensure we call StateMixin hooks on the MultiTask.
+            # We assume these hooks aren't returning anything.
+            if hasattr(StateMixin, funcname):
+                func = getattr(StateMixin, funcname)
+                func(self, *args, **kwargs)
+
+            # Then recurse on each task
             result: Dict[str, Any] = {}
             for name, task in self:
                 assert not isinstance(task, MultiTask)
@@ -199,6 +208,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         )
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.TRAIN
         return self._training_step_cycle(batch, batch_idx) if self.cycle else self._training_step_all(batch, batch_idx)
 
     def _training_step_cycle(self, batch: Any, batch_idx: int) -> Any:
@@ -215,6 +225,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.VAL
         output = {}
         for _, task in self:
             task_output = task.validation_step(batch, batch_idx)
@@ -223,6 +234,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.TEST
         output = {}
         for _, task in self:
             task_output = task.test_step(batch, batch_idx)
@@ -231,6 +243,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def predict_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.PREDICT
         output = {}
         for name, task in self:
             task_output = task.predict_step(batch, batch_idx)
