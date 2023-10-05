@@ -106,6 +106,20 @@ class TestUncollate:
         assert result[0]["d"]["t4"] == 0.0
         assert result[0]["d"]["d2"]["t5"].shape == (1,)
 
+    def test_length_mismatch(self):
+        batch = {
+            "t1": torch.rand(4, 1),
+            "t2": torch.rand(2, 1),
+        }
+        result = list(uncollate(batch))
+        assert len(result) == 2
+        assert isinstance(result[0]["t1"], Tensor)
+        assert isinstance(result[0]["t2"], Tensor)
+        assert (result[0]["t1"] == batch["t1"][0]).all()
+        assert (result[1]["t1"] == batch["t1"][1]).all()
+        assert (result[0]["t2"] == batch["t2"][0]).all()
+        assert (result[1]["t2"] == batch["t2"][1]).all()
+
 
 class TestDatasetNames:
     @pytest.fixture
