@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from typing import Any, Dict, cast
+from typing import Any, Dict, Set, cast
 
 import torch
 import torch.nn as nn
@@ -29,11 +29,42 @@ def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool =
         checkpoint_state_dict = {
             k: v for k, v in state_dict.items() if k in model_state_dict and v.shape == model_state_dict[k].shape
         }
-        loaded_layers = len(checkpoint_state_dict)
-        total_layers = len(model_state_dict)
-        loaded_percent = loaded_layers / max(total_layers, 1) * 100
-        rank_zero_info(f"Loaded {loaded_layers} out of {total_layers} ({loaded_percent:.1f}%) layers from checkpoint.")
         model.load_state_dict(checkpoint_state_dict, strict=False)
+
+        # Summarize count of loaded parameters
+        num_loaded_layers = len(checkpoint_state_dict)
+        unloaded_layers = {k for k in model_state_dict if k not in checkpoint_state_dict}
+        total_layers = len(model_state_dict)
+        loaded_percent = num_loaded_layers / max(total_layers, 1) * 100
+        rank_zero_info(
+            f"Loaded {num_loaded_layers} out of {total_layers} ({loaded_percent:.1f}%) layers from checkpoint."
+        )
+
+        # Summarize unloaded layers, reporting the highest level of the hierarchy that is unloaded
+        def summarize_unloaded(x: nn.Module, unloaded_layers: Set[str], prefix: str = "") -> Set[str]:
+            module_params = set(x.state_dict().keys())
+            unloaded_layers = {k.replace(prefix, "") for k in unloaded_layers if k.startswith(prefix)}
+            intersection = module_params.intersection(unloaded_layers)
+
+            # If all children of x are unloaded, then x is fully unloaded
+            if len(intersection) == len(module_params):
+                return {prefix[:-1]}
+            # If no children of x are unloaded, then x is fully loaded
+            elif not intersection:
+                return set()
+
+            summary = {
+                f"{prefix}{n}"
+                for name, child in x.named_children()
+                for n in summarize_unloaded(child, unloaded_layers, prefix=f"{name}.")
+            }
+            summary = summary.union(f"{prefix}{n}" for n in unloaded_layers) if not summary else summary
+            return summary
+
+        unloaded_layers = ", ".join(sorted(summarize_unloaded(model, unloaded_layers)))
+        if unloaded_layers:
+            rank_zero_info(f"Unloaded layers: {unloaded_layers}")
+
     return model
 
 

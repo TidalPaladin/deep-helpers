@@ -31,13 +31,72 @@ def test_load_checkpoint(mocker, checkpoint, model, strict, matching_count):
     spy = mocker.spy(model, "load_state_dict")
     state_dict = checkpoint.state_dict()
     model = load_checkpoint(model, state_dict, strict=strict)
-    spy.assert_called_once()
 
     if not strict:
         total_layers = len(model.state_dict())
         expected_percent = 100 * (matching_count / max(1, total_layers))
         msg = f"Loaded {matching_count} out of {total_layers} ({expected_percent:.1f}%) layers from checkpoint."
-        log_spy.assert_called_once_with(msg)
+        for args in log_spy.call_args_list:
+            if msg in args[0][0]:
+                break
+        else:
+            pytest.fail(f"Expected log message: {msg}")
+    else:
+        spy.assert_called_once()
+
+
+def test_load_checkpoint_report_unloaded_layers(mocker):
+    checkpoint = nn.ModuleDict(
+        {
+            "conv": nn.Conv2d(3, 10, 3),
+            "convdict1": nn.ModuleDict(
+                {
+                    "conv2": nn.Conv2d(3, 10, 3),
+                    "conv3": nn.Conv2d(3, 10, 3),
+                }
+            ),
+            "convdict2": nn.ModuleDict(
+                {
+                    "conv2": nn.Conv2d(3, 10, 3),
+                    "conv3": nn.Conv2d(3, 10, 3),
+                    "convlist": nn.ModuleList(
+                        [
+                            nn.Linear(3, 5),
+                        ]
+                    ),
+                }
+            ),
+            "linear": nn.Linear(3, 5),
+        }
+    )
+    model = nn.ModuleDict(
+        {
+            "conv": nn.Conv2d(3, 20, 3),
+            "convdict1": nn.ModuleDict(
+                {
+                    "conv2": nn.Conv2d(3, 20, 3),
+                    "conv3": nn.Conv2d(3, 20, 3),
+                }
+            ),
+            "convdict2": nn.ModuleDict(
+                {
+                    "conv2": nn.Conv2d(3, 20, 3),
+                    "conv3": nn.Conv2d(3, 10, 3),
+                    "convlist": nn.ModuleList(
+                        [
+                            nn.Linear(10, 5),
+                        ]
+                    ),
+                }
+            ),
+            "linear": nn.Linear(3, 5),
+        }
+    )
+    state_dict = checkpoint.state_dict()
+
+    log_spy = mocker.spy(deep_helpers.helpers, "rank_zero_info")
+    model = load_checkpoint(model, state_dict, strict=False)
+    log_spy.assert_called_with("Unloaded layers: conv, convdict1, convdict2.conv2, convdict2.convlist.0.weight")
 
 
 class TestTryCompileModel:
