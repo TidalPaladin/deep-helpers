@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from typing import Any, Dict, Set, cast
+from typing import Any, Dict, Iterable, Literal, Set, Sized, Tuple, TypeVar, Union, cast, overload
 
 import torch
 import torch.nn as nn
@@ -84,3 +84,51 @@ def try_compile_model(model: nn.Module) -> nn.Module:
     except Exception as e:
         logging.exception(f"Failed to compile {model.__class__.__name__}.", exc_info=e)
     return model
+
+
+T = TypeVar("T")
+
+
+@overload
+def to_tuple(x: Union[T, Iterable[T]], length: Literal[1]) -> Tuple[T]:
+    pass
+
+
+@overload
+def to_tuple(x: Union[T, Iterable[T]], length: Literal[2]) -> Tuple[T, T]:
+    pass
+
+
+@overload
+def to_tuple(x: Union[T, Iterable[T]], length: Literal[3]) -> Tuple[T, T, T]:
+    pass
+
+
+@overload
+def to_tuple(x: Union[T, Iterable[T]], length: int) -> Tuple[T, ...]:
+    pass
+
+
+def to_tuple(x: Union[T, Iterable[T]], length: int) -> Tuple[T, ...]:
+    """
+    Converts a value or iterable of values to a tuple.
+
+    Args:
+        x: The value or iterable of values to convert to a tuple.
+        length: The expected length of the tuple.
+
+    Raises:
+        * ValueError: If `x` is a non-str iterable and its length does not match `length`.
+
+    Returns:
+        The value or iterable of values as a tuple.
+    """
+    if isinstance(x, Sized) and len(x) == length:
+        return tuple(cast(Iterable[T], x))
+    elif isinstance(x, Iterable) and not isinstance(x, str):
+        result = tuple(x)
+        if not len(result) == length:
+            raise ValueError(f"Expected an iterable of length {length}, but got {len(result)}.")
+        return result
+    else:
+        return cast(Tuple[T, ...], (x,) * length)

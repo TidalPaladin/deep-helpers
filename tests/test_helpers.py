@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import deep_helpers
 from deep_helpers import load_checkpoint
-from deep_helpers.helpers import try_compile_model
+from deep_helpers.helpers import to_tuple, try_compile_model
 
 
 @pytest.mark.parametrize(
@@ -125,3 +125,28 @@ class TestTryCompileModel:
         result = try_compile_model(model)
         assert result is model
         assert "Exception" in caplog.text
+
+
+class TestToTuple:
+    @pytest.mark.parametrize(
+        "x, length, expected",
+        [
+            (5, 3, (5, 5, 5)),
+            ([1, 2, 3], 3, (1, 2, 3)),
+            ((4, 5), 2, (4, 5)),
+        ],
+    )
+    def test_to_tuple(self, x, length, expected):
+        result = to_tuple(x, length)
+        assert result == expected
+
+    @pytest.mark.parametrize(
+        "x, length",
+        [
+            ([1, 2], 3),
+            ((1, 2, 3), 2),
+        ],
+    )
+    def test_to_tuple_exception(self, x, length):
+        with pytest.raises(ValueError):
+            to_tuple(x, length)
