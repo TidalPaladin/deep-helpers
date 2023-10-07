@@ -100,7 +100,7 @@ def to_tuple(x: Union[T, Iterable[T]], length: Literal[2]) -> Tuple[T, T]:
 
 
 @overload
-def to_tuple(x: Union[T, Iterable[T]], length: Literal[2]) -> Tuple[T, T, T]:
+def to_tuple(x: Union[T, Iterable[T]], length: Literal[3]) -> Tuple[T, T, T]:
     pass
 
 
