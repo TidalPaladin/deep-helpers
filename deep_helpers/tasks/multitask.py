@@ -18,6 +18,7 @@ HOOKS: Final = [
     ModelHooks,
     CheckpointHooks,
 ]
+NOT_FORWARDABLE: Final = ("configure_sharded_model",)  # Deprecated after PL 2.1, will raise exception if forwarded
 
 
 def update(dest: Dict, src: Dict) -> None:
@@ -43,7 +44,12 @@ class ForwardHooks(ABCMeta):
             for method_name in dir(hook):
                 method = getattr(hook, method_name)
                 # Skip private methods and methods with overriden implementations
-                if callable(method) and method_name not in attrs and not method_name.startswith("__"):
+                if (
+                    callable(method)
+                    and method_name not in attrs
+                    and not method_name.startswith("__")
+                    and method_name not in NOT_FORWARDABLE
+                ):
                     setattr(new_class, method_name, cls.recursive_task_wrapper(funcname=method_name))
 
         return new_class
