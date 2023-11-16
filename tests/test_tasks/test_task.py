@@ -129,6 +129,7 @@ class TestTask:
                 },
             },
             "compile": True,
+            "float32_matmul_precision": "highest",
         }
 
         config = {
@@ -147,6 +148,7 @@ class TestTask:
         ]
 
         compile = mocker.patch("deep_helpers.cli.try_compile_model")
+        precision = mocker.patch("torch.set_float32_matmul_precision")
 
         try:
             cli_main()
@@ -154,6 +156,7 @@ class TestTask:
             raise e.__context__ if e.__context__ is not None else e
 
         compile.assert_called_once()
+        precision.assert_called_once_with("highest")
 
     @pytest.mark.parametrize("from_env", [False, True])
     def test_create(self, mocker, task, from_env):
