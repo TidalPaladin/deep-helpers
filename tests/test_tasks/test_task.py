@@ -129,6 +129,7 @@ class TestTask:
                 },
             },
             "compile": True,
+            "float32_matmul_precision": "highest",
         }
 
         config = {
@@ -147,6 +148,7 @@ class TestTask:
         ]
 
         compile = mocker.patch("deep_helpers.cli.try_compile_model")
+        precision = mocker.patch("torch.set_float32_matmul_precision")
 
         try:
             cli_main()
@@ -154,6 +156,7 @@ class TestTask:
             raise e.__context__ if e.__context__ is not None else e
 
         compile.assert_called_once()
+        precision.assert_called_once_with("highest")
 
     @pytest.mark.parametrize("from_env", [False, True])
     def test_create(self, mocker, task, from_env):
@@ -206,13 +209,3 @@ class TestTask:
 
         log_metric_count = sum(1 for call in log_dict_spy.mock_calls for k in call.args[0].keys() if k == "val/acc")
         assert log_metric_count == 1
-
-    @pytest.mark.parametrize("value", [None, "medium", "high", "highest"])
-    def test_float32_matmul_precision(self, mocker, task, value):
-        m = mocker.spy(torch, "set_float32_matmul_precision")
-        task.float32_matmul_precision = value
-        task.setup()
-        if value is not None:
-            m.assert_called_once_with(value)
-        else:
-            m.assert_not_called()

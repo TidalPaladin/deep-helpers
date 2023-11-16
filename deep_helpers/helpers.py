@@ -79,7 +79,7 @@ def try_compile_model(model: nn.Module) -> nn.Module:
         The compiled model if successful, otherwise the original uncompiled model.
     """
     try:
-        logging.info(f"Compiling {model.__class__.__name__}...")
+        rank_zero_info(f"Compiling {model.__class__.__name__}...")
         model = cast(nn.Module, torch.compile(model))  # type: ignore
     except Exception as e:
         logging.exception(f"Failed to compile {model.__class__.__name__}.", exc_info=e)
