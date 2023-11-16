@@ -206,3 +206,13 @@ class TestTask:
 
         log_metric_count = sum(1 for call in log_dict_spy.mock_calls for k in call.args[0].keys() if k == "val/acc")
         assert log_metric_count == 1
+
+    @pytest.mark.parametrize("value", [None, "medium", "high", "highest"])
+    def test_float32_matmul_precision(self, mocker, task, value):
+        m = mocker.spy(torch, "set_float32_matmul_precision")
+        task.float32_matmul_precision = value
+        task.setup()
+        if value is not None:
+            m.assert_called_once_with(value)
+        else:
+            m.assert_not_called()

@@ -163,6 +163,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
         weight_decay_exemptions: Set[str] = set(),
+        float32_matmul_precision: Optional[str] = None,
     ):
         super(Task, self).__init__()
         self.state = State()
@@ -177,6 +178,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
         self.weight_decay_exemptions = set(weight_decay_exemptions)
+        self.float32_matmul_precision = float32_matmul_precision
 
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:
@@ -283,6 +285,9 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                         m.reset()
 
     def setup(self, *args, **kwargs):
+        if self.float32_matmul_precision is not None:
+            rank_zero_info(f"Setting float32_matmul_precision to '{self.float32_matmul_precision}'")
+            torch.set_float32_matmul_precision(self.float32_matmul_precision)
         if self.checkpoint is not None:
             self._safe_load_checkpoint()
 
