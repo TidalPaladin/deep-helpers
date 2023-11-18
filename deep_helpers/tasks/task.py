@@ -6,6 +6,7 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Generic, Iterator, Optional, Set, Type, TypedDict, TypeVar, Union, cast
+from safetensors import safe_open
 
 import pytorch_lightning as pl
 import torch
@@ -292,7 +293,17 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         if not checkpoint_path.is_file():
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")  # pragma: no cover
         rank_zero_info(f"Loading checkpoint (strict={self.strict_checkpoint}): {checkpoint_path}")
-        state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
+
+        if checkpoint_path.suffix == ".safetensors":
+            state_dict = {}
+            with safe_open(checkpoint_path, framework="pt", device=self.device.index) as f:
+                # Handle case where "state_dict" is a key in the file
+                if isinstance(f, dict) and "state_dict" in f.keys():
+                    f = f["state_dict"]
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)
+        else:
+            state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
         load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
 
     def compute_total_loss(self, output: O) -> Tensor:

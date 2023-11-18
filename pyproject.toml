@@ -10,23 +10,22 @@ authors = [
     {name = "Scott Chase Waggener", email = "tidalpaladin@protonmail.com"},
 ]
 dependencies = [
-  "torch",
-  "pytorch-lightning",
-  "torchmetrics",
-  "numpy",
-  "pandas",
-  "matplotlib",
-  "strenum",
-  "scikit-learn",
-  "wandb",
-  "jsonargparse[signatures]>=4.17.0",
-  "registry @ git+https://github.com/TidalPaladin/callable-registry.git",
+    "torch",
+    "pytorch-lightning",
+    "torchmetrics",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "strenum",
+    "scikit-learn",
+    "wandb",
+    "jsonargparse[signatures]>=4.17.0",
+    "registry @ git+https://github.com/TidalPaladin/callable-registry.git",
+    "safetensors>=0.4.0",
 ]
 readme = "README.md"
 license = {text = "Apache"}
 dynamic = ["version"]
-
-[project.optional-dependencies]
 
 [tool.autoflake]
 remove-all-unused-imports = true
@@ -51,8 +50,6 @@ line_length = 119
 lines_after_imports = 2
 multi_line_output = 3
 use_parentheses = false
-
-[tool.pyright]
 
 [tool.pdm]
 version = { source = "scm" }
@@ -89,5 +86,5 @@ filterwarnings = [
 
 
 # Sample script config
-#[project.scripts]
-#foo = "project.cli.__main__:main"
+[project.scripts]
+safetensor-convert = "deep_helpers.safetensors:entrypoint"
