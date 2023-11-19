@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import torch
-from safetensors.torch import safe_open
 import os
 
 import pytest
+import torch
+from safetensors import safe_open
 
 from deep_helpers.testing import checkpoint_factory
 
