@@ -15,6 +15,7 @@ from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
 from registry import Registry
+from safetensors import safe_open
 from torch import Tensor
 from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
@@ -292,7 +293,17 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         if not checkpoint_path.is_file():
             raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")  # pragma: no cover
         rank_zero_info(f"Loading checkpoint (strict={self.strict_checkpoint}): {checkpoint_path}")
-        state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
+
+        if checkpoint_path.suffix == ".safetensors":
+            state_dict = {}
+            with safe_open(checkpoint_path, framework="pt", device=self.device.index) as f:  # type: ignore
+                # Handle case where "state_dict" is a key in the file
+                if isinstance(f, dict) and "state_dict" in f.keys():
+                    f = f["state_dict"]
+                for k in f.keys():
+                    state_dict[k] = f.get_tensor(k)  # type: ignore
+        else:
+            state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
         load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
 
     def compute_total_loss(self, output: O) -> Tensor:

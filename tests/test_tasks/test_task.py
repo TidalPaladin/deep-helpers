@@ -169,9 +169,20 @@ class TestTask:
         assert isinstance(result, task.__class__)
 
     @pytest.mark.parametrize("strict", [False, True])
-    def test_load_checkpoint(self, mocker, task, strict):
+    def test_load_torch_checkpoint(self, mocker, task, strict):
         m = mocker.patch("deep_helpers.tasks.task.load_checkpoint")
         checkpoint_path = checkpoint_factory(task)
+        task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
+        task.setup()
+        m.assert_called()
+        call = m.mock_calls[0]
+        assert isinstance(call.args[-1], dict)
+        assert call.kwargs["strict"] == strict
+
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_load_safetensors_checkpoint(self, mocker, task, strict):
+        m = mocker.patch("deep_helpers.tasks.task.load_checkpoint")
+        checkpoint_path = checkpoint_factory(task, filename="model.safetensors")
         task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
         task.setup()
         m.assert_called()
