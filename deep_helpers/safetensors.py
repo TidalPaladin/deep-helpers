@@ -20,9 +20,9 @@ def convert_to_safetensors(source: Path, dest: Path) -> None:
         dest: Path to the destination file.
     """
     if not source.is_file():
-        raise FileNotFoundError(source)
+        raise FileNotFoundError(source)  # pragma: no cover
     if not dest.parent.is_dir():
-        raise NotADirectoryError(dest.parent)
+        raise NotADirectoryError(dest.parent)  # pragma: no cover
 
     # Load the state dict
     cp = torch.load(source)

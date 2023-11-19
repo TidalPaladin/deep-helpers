@@ -6,6 +6,7 @@ import torch
 from safetensors import safe_open
 
 from deep_helpers.safetensors import convert_to_safetensors
+from deep_helpers.testing import checkpoint_factory
 
 
 @pytest.fixture
@@ -34,6 +35,16 @@ def test_convert_to_safetensors(tmp_path, checkpoint, state_dict):
         assert torch.allclose(f.get_tensor("key"), state_dict["key"])
         assert torch.allclose(f.get_tensor("dup1"), state_dict["dup1"])
         assert "dup2" not in f.keys()
+
+
+def test_load_from_task(mocker, tmp_path, task):
+    torch_checkpoint = checkpoint_factory(task, root=tmp_path)
+    safetensors_checkpoint = tmp_path / "checkpoint.safetensors"
+    convert_to_safetensors(torch_checkpoint, safetensors_checkpoint)
+    task.checkpoint = safetensors_checkpoint
+    spy = mocker.spy(task, "_safe_load_checkpoint")
+    task.setup()
+    spy.assert_called_once()
 
 
 def test_safetensors_cli(tmp_path, checkpoint):
