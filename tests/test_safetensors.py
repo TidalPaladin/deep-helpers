@@ -37,6 +37,26 @@ def test_convert_to_safetensors(tmp_path, checkpoint, state_dict):
         assert "dup2" not in f.keys()
 
 
+def test_convert_to_safetensors_include(tmp_path, checkpoint, state_dict):
+    dest = tmp_path / "dest.safetensors"
+    convert_to_safetensors(checkpoint, dest, include=["key"])
+
+    with safe_open(dest, framework="pt") as f:  # type: ignore
+        assert torch.allclose(f.get_tensor("key"), state_dict["key"])
+        assert "dup1" not in f.keys()
+        assert "dup2" not in f.keys()
+
+
+def test_convert_to_safetensors_exclude(tmp_path, checkpoint, state_dict):
+    dest = tmp_path / "dest.safetensors"
+    convert_to_safetensors(checkpoint, dest, exclude=["dup1"])
+
+    with safe_open(dest, framework="pt") as f:  # type: ignore
+        assert torch.allclose(f.get_tensor("key"), state_dict["key"])
+        assert "dup1" not in f.keys()
+        assert torch.allclose(f.get_tensor("dup2"), state_dict["dup2"])
+
+
 def test_summarize(tmp_path, checkpoint):
     dest = tmp_path / "dest.safetensors"
     convert_to_safetensors(checkpoint, dest)
