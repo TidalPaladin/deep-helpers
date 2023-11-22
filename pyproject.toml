@@ -87,4 +87,4 @@ filterwarnings = [
 
 # Sample script config
 [project.scripts]
-safetensors-convert = "deep_helpers.safetensors:entrypoint"
+safetensors = "deep_helpers.safetensors:entrypoint"

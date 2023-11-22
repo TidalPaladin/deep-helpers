@@ -5,7 +5,7 @@ import pytest
 import torch
 from safetensors import safe_open
 
-from deep_helpers.safetensors import convert_to_safetensors
+from deep_helpers.safetensors import convert_to_safetensors, summarize
 from deep_helpers.testing import checkpoint_factory
 
 
@@ -37,6 +37,15 @@ def test_convert_to_safetensors(tmp_path, checkpoint, state_dict):
         assert "dup2" not in f.keys()
 
 
+def test_summarize(tmp_path, checkpoint):
+    dest = tmp_path / "dest.safetensors"
+    convert_to_safetensors(checkpoint, dest)
+
+    # Call summarize and check if it returns a string
+    summary = summarize(dest)
+    assert isinstance(summary, str)
+
+
 def test_load_from_task(mocker, tmp_path, task):
     torch_checkpoint = checkpoint_factory(task, root=tmp_path)
     safetensors_checkpoint = tmp_path / "checkpoint.safetensors"
@@ -47,12 +56,26 @@ def test_load_from_task(mocker, tmp_path, task):
     spy.assert_called_once()
 
 
-def test_safetensors_cli(tmp_path, checkpoint):
+def test_safetensors_cli_convert(tmp_path, checkpoint):
     dest = tmp_path / "dest.safetensors"
     sys.argv = [
         sys.argv[0],
+        "convert",
         str(checkpoint),
         str(dest),
     ]
     runpy.run_module("deep_helpers.safetensors", run_name="__main__", alter_sys=True)
     assert dest.is_file()
+
+
+def test_safetensors_cli_cat(capsys, tmp_path, checkpoint):
+    dest = tmp_path / "dest.safetensors"
+    convert_to_safetensors(checkpoint, dest)
+    sys.argv = [
+        sys.argv[0],
+        "cat",
+        str(dest),
+    ]
+    runpy.run_module("deep_helpers.safetensors", run_name="__main__", alter_sys=True)
+    captured = capsys.readouterr()
+    assert "Total weights" in captured.out
