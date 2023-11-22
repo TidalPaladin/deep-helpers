@@ -1,7 +1,7 @@
 import argparse
-from copy import copy
+from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, List
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from safetensors.torch import save_model
 from torch import Tensor
 
 
-def convert_to_safetensors(source: Path, dest: Path) -> None:
+def convert_to_safetensors(source: Path, dest: Path, include: List[str] = ["*"], exclude: List[str] = []) -> None:
     """Converts a PyTorch checkpoint to SafeTensors format.
 
     This function reads only the state dict from the checkpoint and saves it in SafeTensors format.
@@ -19,6 +19,8 @@ def convert_to_safetensors(source: Path, dest: Path) -> None:
     Args:
         source: Path to the source checkpoint.
         dest: Path to the destination file.
+        include: Wildcards for weight names to include.
+        exclude: Wildcards for weight names to exclude.
     """
     if not source.is_file():
         raise FileNotFoundError(source)  # pragma: no cover
@@ -40,7 +42,11 @@ def convert_to_safetensors(source: Path, dest: Path) -> None:
             self._state_dict = state_dict
 
         def state_dict(self) -> Dict[str, Tensor]:
-            return copy(self._state_dict)
+            return {
+                k: v
+                for k, v in self._state_dict.items()
+                if any(fnmatch(k, i) for i in include) and not any(fnmatch(k, e) for e in exclude)
+            }
 
     model = DummyModel(state_dict)
     save_model(model, str(dest))
@@ -86,6 +92,10 @@ def create_parser() -> argparse.ArgumentParser:
     )
     convert_parser.add_argument("source", type=Path, help="Path to the source checkpoint.")
     convert_parser.add_argument("dest", type=Path, help="Path to the destination file.")
+    convert_parser.add_argument(
+        "-i", "--include", nargs="+", default=["*"], help="Wildcards for weight names to include."
+    )
+    convert_parser.add_argument("-e", "--exclude", nargs="+", default=[], help="Wildcards for weight names to exclude.")
 
     cat_parser = subparsers.add_parser(
         "cat",
@@ -98,7 +108,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 def main(args: argparse.Namespace) -> None:
     if args.command == "convert":
-        convert_to_safetensors(args.source, args.dest)
+        convert_to_safetensors(args.source, args.dest, args.include, args.exclude)
     elif args.command == "cat":
         print(summarize(args.path))
 
