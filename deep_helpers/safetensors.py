@@ -1,4 +1,5 @@
 import argparse
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
@@ -7,16 +8,6 @@ import torch.nn as nn
 from safetensors import safe_open
 from safetensors.torch import save_model
 from torch import Tensor
-
-
-def wildcard_match(name: str, wildcard: str) -> bool:
-    r"""Checks a name against a wildcard."""
-    return (
-        wildcard == "*"
-        or (wildcard.endswith("*") and name.startswith(wildcard[:-1]))
-        or (wildcard.startswith("*") and name.endswith(wildcard[1:]))
-        or wildcard in name
-    )
 
 
 def convert_to_safetensors(source: Path, dest: Path, include: List[str] = ["*"], exclude: List[str] = []) -> None:
@@ -54,7 +45,7 @@ def convert_to_safetensors(source: Path, dest: Path, include: List[str] = ["*"],
             return {
                 k: v
                 for k, v in self._state_dict.items()
-                if any(wildcard_match(k, i) for i in include) and not any(wildcard_match(k, e) for e in exclude)
+                if any(fnmatch(k, i) for i in include) and not any(fnmatch(k, e) for e in exclude)
             }
 
     model = DummyModel(state_dict)
