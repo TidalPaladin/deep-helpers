@@ -28,7 +28,7 @@ def convert_to_safetensors(source: Path, dest: Path, include: List[str] = ["*"],
         raise NotADirectoryError(dest.parent)  # pragma: no cover
 
     # Load the state dict
-    cp = torch.load(source)
+    cp = torch.load(source, map_location="cpu")
     state_dict = cp["state_dict"]
 
     # We want to save the state dict using save_model because it will deduplicate the tensors

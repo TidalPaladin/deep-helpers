@@ -109,3 +109,10 @@ def test_safetensors_cli_cat(capsys, tmp_path, checkpoint):
     runpy.run_module("deep_helpers.safetensors", run_name="__main__", alter_sys=True)
     captured = capsys.readouterr()
     assert "Total weights" in captured.out
+
+
+def test_map_location(mocker, tmp_path, checkpoint):
+    dest = tmp_path / "dest.safetensors"
+    spy = mocker.spy(torch, "load")
+    convert_to_safetensors(checkpoint, dest)
+    spy.assert_called_once_with(checkpoint, map_location="cpu")
