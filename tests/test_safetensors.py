@@ -67,6 +67,18 @@ def test_convert_to_safetensors_exclude_wildcard(tmp_path, checkpoint, state_dic
         assert "dup2" not in f.keys()
 
 
+def test_convert_to_safetensors_replace(tmp_path, checkpoint, state_dict):
+    dest = tmp_path / "dest.safetensors"
+    convert_to_safetensors(checkpoint, dest, replacements=[("dup", "rep")])
+
+    with safe_open(dest, framework="pt") as f:  # type: ignore
+        assert torch.allclose(f.get_tensor("key"), state_dict["key"])
+        assert "rep1" in f.keys()
+        assert torch.allclose(f.get_tensor("rep1"), state_dict["dup1"])
+        assert "dup1" not in f.keys()
+        assert "dup2" not in f.keys()
+
+
 def test_summarize(tmp_path, checkpoint):
     dest = tmp_path / "dest.safetensors"
     convert_to_safetensors(checkpoint, dest)
