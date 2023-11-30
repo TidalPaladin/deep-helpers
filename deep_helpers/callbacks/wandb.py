@@ -1,31 +1,29 @@
-from typing import Any, ClassVar, Dict, Final, List, Optional, Type, TypeVar, Union
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Type
 
 import torch
+import torch.nn.functional as F
 from pytorch_lightning.loggers import Logger
 from pytorch_lightning.loggers.wandb import WandbLogger
 from torch import Tensor
 from torchvision.ops import box_convert, clip_boxes_to_image, remove_small_boxes
 from torchvision.tv_tensors import BoundingBoxes
 
-from ..structs import Mode
-from ..tasks import Task
 from .base import LoggerIntegration
 
 
-ALL_MODES: Final = [Mode.TRAIN, Mode.VAL, Mode.TEST, Mode.PREDICT]
-T = TypeVar("T")
-L = TypeVar("L", bound=Logger)
-TaskIdentifier = Union[str, int, Type[Task]]
+try:
+    import wandb
+except ImportError:
+    raise ImportError(
+        "Unable to import `wandb`. Please install the 'wandb' extra of `deep-helpers` to use this logger integration."
+    )
 
 
 class WandBLoggerIntegration(LoggerIntegration):
-    r"""Abstraction for integrating with a logger. Implementations of this class
-    should be able to take a logging target prepared by the :class:`LoggingCallback`
-    and log it to the appropriate logger.
-    """
     logger_type: ClassVar[Type[Logger]] = WandbLogger
 
     @staticmethod
+    @torch.no_grad()
     def boxes_to_wandb(
         boxes: BoundingBoxes,
         scores: Dict[str, Tensor] = {},
@@ -46,6 +44,9 @@ class WandBLoggerIntegration(LoggerIntegration):
             min_size: The minimum size of a bounding box to log. Boxes smaller than this will be
                 ignored. Units are in pixels, and removal will be determined prior to converting
                 to relative coordinates.
+
+        Returns:
+            The converted bounding boxes.
         """
         # Validate boxes and determine the number of boxes
         if not isinstance(boxes, BoundingBoxes):
@@ -103,3 +104,58 @@ class WandBLoggerIntegration(LoggerIntegration):
             "box_data": box_data,
             "class_labels": class_labels,
         }
+
+    @staticmethod
+    @torch.no_grad()
+    def image_to_wandb(
+        img: Tensor,
+        caption: Optional[str] = None,
+        grouping: Optional[int] = None,
+        classes: Optional[Sequence[Dict]] = None,
+        boxes: Optional[Dict[str, Any]] = None,
+        masks: Optional[Dict[str, Any]] = None,
+        max_size: Optional[Tuple[int, int]] = None,
+    ) -> wandb.Image:
+        """
+        Converts an image to a wandb.Image object.
+
+        Args:
+            img: The image to convert. If the image is floating point, it will be converted to
+                uint8 and scaled to the range [0, 255]. It is assumed that RGB images are in
+                channels-first format. Floating point and byte images are supported.
+            caption: The caption for the image.
+            grouping: The grouping for the image.
+            classes: The classes for the image.
+            boxes: The bounding boxes for the image.
+            masks: The masks for the image.
+            max_size: The maximum size for the image. If the image is larger than this, it will
+                resized to this size using bilinear interpolation.
+
+        Returns:
+            The converted image object.
+        """
+        prepared_img = img.clone()
+
+        # Resize image
+        if max_size is not None:
+            H, W = img.shape[-2:]
+            prepared_img = F.interpolate(prepared_img.view(1, -1, H, W), size=max_size, mode="bilinear").squeeze_(0)
+
+        # If float, convert to uint8
+        if prepared_img.is_floating_point():
+            prepared_img = prepared_img.mul_(255).clamp_(0, 255).byte()
+
+        # If RGB, convert to channels-last
+        H, W = prepared_img.shape[-2:]
+        prepared_img = prepared_img.view(-1, H, W)
+        if prepared_img.shape[0] == 3:
+            prepared_img = prepared_img.movedim(0, -1)
+
+        return wandb.Image(
+            prepared_img.cpu().numpy(),
+            caption=caption,
+            grouping=grouping,
+            classes=classes,
+            boxes=boxes,
+            masks=masks,
+        )

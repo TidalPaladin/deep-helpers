@@ -1,5 +1,9 @@
+from typing import Tuple
+
+import pytest
 import torch
-from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat
+import wandb
+from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
 
 from deep_helpers.callbacks import WandBLoggerIntegration
 
@@ -45,3 +49,18 @@ def test_boxes_to_wandb():
         "class_labels": class_labels,
     }
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "dtype,size",
+    [
+        (torch.float32, (3, 32, 32)),
+        (torch.float32, (32, 32)),
+        (torch.uint8, (3, 32, 32)),
+    ],
+)
+def test_image_to_wandb(dtype: torch.dtype, size: Tuple[int, ...]):
+    img = torch.rand(*size) if dtype.is_floating_point else torch.randint(0, 255, size, dtype=dtype)
+    img = Image(img)
+    result = WandBLoggerIntegration.image_to_wandb(img)
+    assert isinstance(result, wandb.Image)
