@@ -22,6 +22,8 @@ dependencies = [
     "jsonargparse[signatures]>=4.17.0",
     "registry @ git+https://github.com/TidalPaladin/callable-registry.git",
     "safetensors>=0.4.0",
+    "torchvision>=0.16.1",
+    "einops>=0.7.0",
 ]
 readme = "README.md"
 license = {text = "Apache"}
