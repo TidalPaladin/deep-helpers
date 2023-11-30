@@ -3,11 +3,14 @@
 
 from typing import Dict
 
+import numpy as np
 import pytest
 import torch
 from pytorch_lightning.loggers.wandb import WandbLogger
+from torch import Tensor
 
 from deep_helpers.callbacks import LoggerIntegration, QueuedLoggingCallback
+from deep_helpers.callbacks.image import overlay_heatmap, overlay_text
 from deep_helpers.structs import Mode, State
 from tests.test_callbacks.base_callback import BaseCallbackTest
 
@@ -229,3 +232,59 @@ class TestImageLoggingCallback(BaseCallbackTest):
             assert all(t.device == torch.device("cpu") for t in p.values())
             assert all(not t.requires_grad for t in e.values())
             assert all(not t.requires_grad for t in p.values())
+
+
+@pytest.mark.parametrize("numpy", [False, True])
+def test_overlay_heatmap(numpy):
+    H, W = 512, 384
+    img = torch.rand(2, 1, H, W)
+    probs = torch.rand(2, 1, H, W)
+
+    if numpy:
+        result = overlay_heatmap(img.numpy(), probs.numpy())
+        assert isinstance(result, np.ndarray)
+    else:
+        result = overlay_heatmap(img, probs)
+        assert isinstance(result, Tensor)
+        assert result.is_floating_point()
+
+    assert result.shape == (2, 3, H, W)
+    assert result.max() <= 1.0
+    assert result.min() >= 0.0
+
+
+class TestOverlayText:
+    @pytest.mark.parametrize("numpy", [False, True])
+    def test_batched_string(self, numpy):
+        H, W = 512, 384
+        img = torch.rand(2, 1, H, W)
+
+        text = ["test"] * len(img)
+        if numpy:
+            result = overlay_text(img.numpy(), text, (0.05, 0.05))
+            assert isinstance(result, np.ndarray)
+        else:
+            result = overlay_text(img, text, (0.05, 0.05))
+            assert isinstance(result, Tensor)
+            assert result.is_floating_point()
+
+        assert result.shape == (2, 3, H, W)
+        assert result.max() <= 1.0
+        assert result.min() >= 0.0
+
+    @pytest.mark.parametrize("numpy", [False, True])
+    def test_single_string(self, numpy):
+        H, W = 512, 384
+        img = torch.rand(2, 1, H, W)
+
+        if numpy:
+            result = overlay_text(img.numpy(), "test", (0.05, 0.05))
+            assert isinstance(result, np.ndarray)
+        else:
+            result = overlay_text(img, "test", (0.05, 0.05))
+            assert isinstance(result, Tensor)
+            assert result.is_floating_point()
+
+        assert result.shape == (2, 3, H, W)
+        assert result.max() <= 1.0
+        assert result.min() >= 0.0

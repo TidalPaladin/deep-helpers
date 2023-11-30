@@ -9,6 +9,7 @@ from torchvision.ops import box_convert, clip_boxes_to_image, remove_small_boxes
 from torchvision.tv_tensors import BoundingBoxes
 
 from .base import LoggerIntegration
+from .image import overlay_heatmap
 
 
 try:
@@ -114,6 +115,8 @@ class WandBLoggerIntegration(LoggerIntegration):
         classes: Optional[Sequence[Dict]] = None,
         boxes: Optional[Dict[str, Any]] = None,
         masks: Optional[Dict[str, Any]] = None,
+        heatmap: Optional[Tensor] = None,
+        heatmap_alpha: float = 0.5,
         max_size: Optional[Tuple[int, int]] = None,
     ) -> wandb.Image:
         """
@@ -128,18 +131,39 @@ class WandBLoggerIntegration(LoggerIntegration):
             classes: The classes for the image.
             boxes: The bounding boxes for the image.
             masks: The masks for the image.
+            heatmap: Optional heatmap to overlay on the image. Should be a single-channel image
+                with floating point values in the range [0, 1].
+            heatmap_alpha: The alpha value to use for blending with the heatmap.
             max_size: The maximum size for the image. If the image is larger than this, it will
                 resized to this size using bilinear interpolation.
+
+        Shapes:
+            * ``img`` - :math:`(C, H, W)` or :math:`(H, W)`
+            * ``heatmap`` - :math:`(1, H, W)` or :math:`(H, W)`
 
         Returns:
             The converted image object.
         """
+        H, W = img.shape[-2:]
         prepared_img = img.clone()
 
         # Resize image
         if max_size is not None:
-            H, W = img.shape[-2:]
             prepared_img = F.interpolate(prepared_img.view(1, -1, H, W), size=max_size, mode="bilinear").squeeze_(0)
+            heatmap = (
+                F.interpolate(heatmap.view(1, -1, H, W), size=max_size, mode="bilinear").squeeze_(0)
+                if heatmap is not None
+                else None
+            )
+        H, W = img.shape[-2:]
+
+        # Overlay heatmap if provided
+        if heatmap is not None:
+            prepared_img = overlay_heatmap(
+                heatmap.view(1, 1, H, W),
+                prepared_img.view(1, -1, H, W),
+                alpha=heatmap_alpha,
+            ).view(-1, H, W)
 
         # If float, convert to uint8
         if prepared_img.is_floating_point():

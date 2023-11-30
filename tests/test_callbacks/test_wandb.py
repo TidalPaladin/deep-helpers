@@ -52,15 +52,16 @@ def test_boxes_to_wandb():
 
 
 @pytest.mark.parametrize(
-    "dtype,size",
+    "dtype,size,heatmap",
     [
-        (torch.float32, (3, 32, 32)),
-        (torch.float32, (32, 32)),
-        (torch.uint8, (3, 32, 32)),
+        (torch.float32, (3, 32, 32), False),
+        (torch.float32, (32, 32), False),
+        (torch.uint8, (3, 32, 32), False),
     ],
 )
-def test_image_to_wandb(dtype: torch.dtype, size: Tuple[int, ...]):
+def test_image_to_wandb(dtype: torch.dtype, size: Tuple[int, ...], heatmap: bool):
     img = torch.rand(*size) if dtype.is_floating_point else torch.randint(0, 255, size, dtype=dtype)
     img = Image(img)
-    result = WandBLoggerIntegration.image_to_wandb(img)
+    heatmap_tensor = torch.rand(1, *size) if heatmap else None
+    result = WandBLoggerIntegration.image_to_wandb(img, heatmap=heatmap_tensor)
     assert isinstance(result, wandb.Image)
