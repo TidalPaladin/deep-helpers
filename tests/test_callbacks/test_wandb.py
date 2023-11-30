@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pytest
 import torch
@@ -52,16 +52,17 @@ def test_boxes_to_wandb():
 
 
 @pytest.mark.parametrize(
-    "dtype,size,heatmap",
+    "dtype,size,max_size,heatmap",
     [
-        (torch.float32, (3, 32, 32), False),
-        (torch.float32, (32, 32), False),
-        (torch.uint8, (3, 32, 32), False),
+        (torch.float32, (3, 32, 32), None, False),
+        (torch.float32, (32, 32), None, False),
+        (torch.uint8, (3, 32, 32), None, False),
+        (torch.float32, (3, 32, 32), (10, 10), False),
     ],
 )
-def test_image_to_wandb(dtype: torch.dtype, size: Tuple[int, ...], heatmap: bool):
+def test_image_to_wandb(dtype: torch.dtype, size: Tuple[int, ...], heatmap: bool, max_size: Optional[Tuple[int, int]]):
     img = torch.rand(*size) if dtype.is_floating_point else torch.randint(0, 255, size, dtype=dtype)
     img = Image(img)
     heatmap_tensor = torch.rand(1, *size) if heatmap else None
-    result = WandBLoggerIntegration.image_to_wandb(img, heatmap=heatmap_tensor)
+    result = WandBLoggerIntegration.image_to_wandb(img, heatmap=heatmap_tensor, max_size=max_size)
     assert isinstance(result, wandb.Image)

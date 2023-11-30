@@ -17,7 +17,7 @@ try:
 except ImportError:
     raise ImportError(
         "Unable to import `wandb`. Please install the 'wandb' extra of `deep-helpers` to use this logger integration."
-    )
+    )  # pragma: no cover
 
 
 class WandBLoggerIntegration(LoggerIntegration):
@@ -51,18 +51,20 @@ class WandBLoggerIntegration(LoggerIntegration):
         """
         # Validate boxes and determine the number of boxes
         if not isinstance(boxes, BoundingBoxes):
-            raise TypeError(f"Expected boxes to be of type BoundingBoxes, got {type(boxes)}")
+            raise TypeError(f"Expected boxes to be of type BoundingBoxes, got {type(boxes)}")  # pragma: no cover
         if boxes.ndim != 2 or boxes.shape[-1] != 4:
-            raise ValueError(f"Expected boxes to have shape (N, 4), got {boxes.shape}")
+            raise ValueError(f"Expected boxes to have shape (N, 4), got {boxes.shape}")  # pragma: no cover
 
         # Validate other inputs against expected number of boxes
         for k, v in scores.items():
             if len(v) != len(boxes):
-                raise ValueError(f"Expected scores `{k}` to have length {len(boxes)}, got {len(v)}")
+                raise ValueError(f"Expected scores `{k}` to have length {len(boxes)}, got {len(v)}")  # pragma: no cover
         if len(captions) != len(boxes):
-            raise ValueError(f"Expected captions to have length {len(boxes)}, got {len(captions)}")
+            raise ValueError(f"Expected captions to have length {len(boxes)}, got {len(captions)}")  # pragma: no cover
         if class_ids is not None and len(class_ids) != len(boxes):
-            raise ValueError(f"Expected class_ids to have length {len(boxes)}, got {len(class_ids)}")
+            raise ValueError(
+                f"Expected class_ids to have length {len(boxes)}, got {len(class_ids)}"
+            )  # pragma: no cover
 
         # Convert boxes to xyxy format and clip them to the image
         H, W = boxes.canvas_size
