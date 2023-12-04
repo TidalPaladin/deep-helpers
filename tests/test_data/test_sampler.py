@@ -122,6 +122,30 @@ class TestConcatBatchSampler:
                 "zip",
                 [[1, 8], [2, 7], [3, 6], [4, 5]],
             ),
+            (
+                [
+                    [1, 2, 3, 4],
+                    [1, 2, 3],
+                ],
+                [
+                    MockBatchSampler([[1, 2], [3, 4]]),
+                    MockBatchSampler([[1, 2], [3]]),
+                ],
+                "cycle",
+                [[1, 2], [5, 6], [3, 4], [7]],
+            ),
+            (
+                [
+                    [1, 2, 3, 4],
+                    [1, 2, 3],
+                ],
+                [
+                    MockBatchSampler([[1, 2], [3, 4]]),
+                    MockBatchSampler([[1, 2], [3]]),
+                ],
+                "zip",
+                [[1, 5], [2, 6], [3, 7], [4]],
+            ),
         ],
     )
     def test_iter(
