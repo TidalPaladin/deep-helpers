@@ -1,4 +1,6 @@
-from typing import Iterator, List, Sequence, Sized, Union, cast
+from functools import cached_property
+from itertools import chain, islice
+from typing import Iterator, List, Sequence, Sized, TypeVar, Union, cast
 
 from torch.utils.data import BatchSampler, Sampler
 
@@ -56,6 +58,28 @@ class ConcatSampler(Sampler):
             yield from map(map_fn, iter(sampler))
 
 
+T = TypeVar("T")
+
+
+def interleave(*args: Iterator[T]) -> Iterator[T]:
+    iterables: List[Iterator[T]] = list(args)
+    while iterables:
+        for iterable in iterables:
+            try:
+                yield next(iterable)
+            except StopIteration:
+                iterables.remove(iterable)
+
+
+# TODO: This is built-in to Python 3.12
+def batch(iterable: Iterator[T], n: int) -> Iterator[List[T]]:
+    while True:
+        chunk = list(islice(iterable, n))
+        if not chunk:
+            return
+        yield chunk
+
+
 class ConcatBatchSampler(BatchSampler):
     r"""Sampler that concatenates multiple batch samplers together. All input samplers must
     be ``Sized``. The length of the concatenated sampler is the sum of the lengths of
@@ -67,12 +91,17 @@ class ConcatBatchSampler(BatchSampler):
         batch_samplers: The batch samplers to concatenate. The number of batch samplers must
             equal the number of samplers. It is expected that the i'th batch sampler yields
             indices from the i'th sampler.
+        method: The method to use for iterating over the batch samplers. Must be one of
+            "sequential", "cycle", or "zip. "sequential" iterates over the batch samplers
+            sequentially. "cycle" draws a batch from each sampler in turn. "zip" splices
+            individual examples from each batch sampler together.
     """
 
     def __init__(
         self,
         samplers: Sequence[SamplerOrSequence],
         batch_samplers: Sequence[BatchSamplerOrSequence],
+        method: str = "sequential",
     ) -> None:
         if not all(isinstance(sampler, Sized) for sampler in samplers):
             raise TypeError("All samplers must be Sized")  # pragma: no cover
@@ -85,17 +114,44 @@ class ConcatBatchSampler(BatchSampler):
 
         self.samplers = samplers
         self.batch_samplers = batch_samplers
+        self.method = method
 
     def __len__(self) -> int:
         return sum(len(cast(Sized, s)) for s in self.batch_samplers)
 
-    def __iter__(self) -> Iterator[List[int]]:
-        for batch_sampler_idx, batch_sampler in enumerate(self.batch_samplers):
-            for indices in batch_sampler:
-                if not isinstance(indices, Sequence):
-                    raise TypeError("Expected batch sampler to yield sequences of indices")  # pragma: no cover
+    @cached_property
+    def batch_size(self) -> int:
+        return len(next(iter(self.batch_samplers[0])))
 
-                # NOTE: We get indices as a mini-batch from the batch sampler, but we need to
-                # offset them by the sum of the lengths of all previous (non-batch) samplers.
-                # This is why we need both the batch samplers and the samplers.
-                yield [apply_offset(cast(Sequence[Sized], self.samplers), idx, batch_sampler_idx) for idx in indices]
+    def _iterate_offset_adjusted_batches(self, batch_sampler_idx) -> Iterator[List[int]]:
+        batch_sampler = self.batch_samplers[batch_sampler_idx]
+        for batch in batch_sampler:
+            yield [apply_offset(cast(Sequence[Sized], self.samplers), idx, batch_sampler_idx) for idx in batch]
+
+    def __iter__(self) -> Iterator[List[int]]:
+        # Set up iterators that already have the offsets applied.
+        batch_sampler_iterators = [
+            self._iterate_offset_adjusted_batches(batch_sampler_idx)
+            for batch_sampler_idx in range(len(self.batch_samplers))
+        ]
+
+        batch_iterator: Iterator[List[int]]
+        if self.method == "sequential":
+            # In this case we just chain the iterators together.
+            batch_iterator = chain(*batch_sampler_iterators)
+        elif self.method == "cycle":
+            # In this case we interleave the iterators together at the batch level
+            batch_iterator = interleave(*batch_sampler_iterators)
+        elif self.method == "zip":
+            # In this case we interleave the iterators together at the example level
+            batch_iterator = (
+                list(zipped_batch)
+                # First we interleave the batch samplers, getting one batch from each sampler
+                for interleaved_batch in batch(interleave(*batch_sampler_iterators), len(self.batch_samplers))
+                # Then we interleave the examples from each batch sampler
+                for zipped_batch in batch(interleave(*(iter(i) for i in interleaved_batch)), self.batch_size)
+            )
+        else:
+            raise ValueError(f"Invalid method: {self.method}")  # pragma: no cover
+
+        yield from batch_iterator
