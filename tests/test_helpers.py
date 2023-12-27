@@ -7,7 +7,7 @@ import torch.nn as nn
 
 import deep_helpers
 from deep_helpers import load_checkpoint
-from deep_helpers.helpers import to_tuple, try_compile_model
+from deep_helpers.helpers import reduce_by_hash, to_tuple, torch_hash, try_compile_model
 
 
 @pytest.mark.parametrize(
@@ -150,3 +150,28 @@ class TestToTuple:
     def test_to_tuple_exception(self, x, length):
         with pytest.raises(ValueError):
             to_tuple(x, length)
+
+
+@pytest.mark.parametrize(
+    "inp, expected",
+    [
+        (["abc", "def"], torch.tensor([8545827329296178901, 6821043741151009407])),
+    ],
+)
+def test_torch_hash(inp, expected):
+    result = torch_hash(inp)
+    assert (result == expected).all()
+
+
+@pytest.mark.parametrize(
+    "hashes, inp, reduce, fill_value, expected",
+    [
+        (torch.tensor([1, 2, 3]), torch.tensor([4, 5, 6]), "sum", 0.0, torch.tensor([4, 5, 6])),
+        (torch.tensor([1, 1, 1]), torch.tensor([4, 5, 6]), "sum", 0.0, torch.tensor([15])),
+        (torch.tensor([1, 2, 3]), torch.tensor([4, 5, 6]), "mean", 0.0, torch.tensor([4, 5, 6])),
+        (torch.tensor([1, 1, 1]), torch.tensor([4, 5, 6]), "mean", 0.0, torch.tensor([5])),
+    ],
+)
+def test_reduce_by_hash(hashes, inp, reduce, fill_value, expected):
+    result = reduce_by_hash(hashes, inp, reduce, fill_value)
+    assert torch.equal(result, expected)

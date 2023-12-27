@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import hashlib
 import logging
-from typing import Any, Dict, Iterable, Literal, Set, Sized, Tuple, TypeVar, Union, cast, overload
+from typing import Any, Dict, Final, Iterable, Literal, Optional, Set, Sized, Tuple, TypeVar, Union, cast, overload
 
 import torch
 import torch.nn as nn
 from lightning_utilities.core.rank_zero import rank_zero_info
+from torch import Tensor
+
+
+MAX_HASH: Final = torch.iinfo(torch.long).max
 
 
 def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool = True) -> nn.Module:
@@ -132,3 +137,46 @@ def to_tuple(x: Union[T, Iterable[T]], length: int) -> Tuple[T, ...]:
         return result
     else:
         return cast(Tuple[T, ...], (x,) * length)
+
+
+def torch_hash(inp: Iterable[str], proto: Optional[Tensor] = None) -> Tensor:
+    r"""Hashes an iterable of strings using MD5. This method is deterministic across processes
+    and will not overflow ``torch.long``.
+
+    Args:
+        inp: The strings to hash.
+        proto: A tensor to use as a prototype for the output tensor.
+            By default a CPU tensor of type ``torch.long`` is used.
+
+    Returns:
+        Tensor containing hashes of the input strings.
+    """
+    # We don't use the builtin hash, as it seems non-deterministic across processes
+    # and will give incorrect results in multi-GPU mode.
+    # We also take care to ensure we don't overflow torch.long.
+    hashes = [int(hashlib.md5(i.encode("utf-8")).hexdigest(), 16) % MAX_HASH for i in inp]
+    return proto.new_tensor(hashes, dtype=torch.long) if proto is not None else torch.tensor(hashes, dtype=torch.long)
+
+
+def reduce_by_hash(hashes: Tensor, inp: Tensor, reduce: str, fill_value: float = 0.0) -> Tensor:
+    r"""Reduces values in a tensor by grouping them by hash.
+
+    Args:
+        hashes: The hashes to group by.
+        inp: The values to reduce.
+        reduce: The reduction operation to perform. See ``torch.Tensor.scatter_reduce_`` for details.
+        fill_value: The fill value to use for the output tensor.
+
+    Returns:
+        Tensor containing the reduced values.
+    """
+    # Determine the unique hashes and their indices
+    unique_hashes, indices = torch.unique(hashes, return_inverse=True)
+
+    # Allocate the output tensor filled with the fill value
+    output = inp.new_full((len(unique_hashes),), fill_value)
+
+    # Accumulate the input values into the output tensor
+    output.scatter_reduce_(0, indices, inp, reduce=reduce, include_self=False)
+
+    return output
