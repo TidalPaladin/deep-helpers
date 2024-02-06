@@ -513,8 +513,9 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             help="Path to the checkpoint. Can be a lightning or safetensors file.",
         )
         parser.add_argument(
-            "-d", "--device",
-            type=torch.device,
+            "-d",
+            "--device",
+            type=str,
             default="cpu",
             help="Device to use for inference.",
         )
