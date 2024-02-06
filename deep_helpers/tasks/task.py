@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import json
 import logging
 import os
 from abc import ABC, abstractmethod
+from inspect import signature
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Generic, Iterator, Optional, Set, Type, TypedDict, TypeVar, Union, cast
 
@@ -11,6 +13,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchmetrics as tm
+import yaml
+from jsonargparse import ArgumentParser, Namespace
 from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
@@ -146,8 +150,26 @@ T = TypeVar("T", bound="Task")
 
 
 class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], ABC):
-    CHECKPOINT_ENV_VAR: ClassVar[Optional[str]] = None
+    """
+    Defines a task for training, validation, and testing with PyTorch Lightning.
 
+    Args:
+        optimizer_init: Configuration for the optimizer initialization.
+        lr_scheduler_init: Configuration for the learning rate scheduler initialization.
+        lr_interval: Interval for updating the learning rate scheduler ('step' or 'epoch').
+        lr_monitor: Metric name to monitor for learning rate scheduler updates.
+        named_datasets: Flag indicating whether datasets are named.
+        checkpoint: Path to a checkpoint file for loading pre-trained weights.
+        strict_checkpoint: Flag indicating whether to strictly enforce matching for checkpoint loading.
+        log_train_metrics_interval: Interval for logging training metrics.
+        log_train_metrics_on_epoch: Flag indicating whether to log training metrics on epoch end.
+        weight_decay_exemptions: Set of parameter names exempt from weight decay. Matches against class names
+            or partial parameter names. E.g. "conv" will match "backbone.conv1.weight" and "backbone.conv2.weight".
+    """
+
+    # TODO: For now we will retain support for CHECKPOINT_ENV_VAR. However jsonargparse provides a CLI mechanism for
+    # env var reading. We should consider using that instead.
+    CHECKPOINT_ENV_VAR: ClassVar[str] = "CHECKPOINT"
     state: State
     logger: LightningLoggerBase
     trainer: pl.Trainer
@@ -159,7 +181,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         lr_interval: str = "epoch",
         lr_monitor: str = "train/total_loss_epoch",
         named_datasets: bool = False,
-        checkpoint: Optional[str] = None,
+        checkpoint: str | os.PathLike | None = None,
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
@@ -448,3 +470,110 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         result.eval()
         logging.info(f"Loaded {cls.__name__} checkpoint from {checkpoint_path}")
         return cast(T, result)
+
+    @classmethod
+    def add_args_to_parser(
+        cls,
+        parser: ArgumentParser,
+        key: str = "model",
+        skip: Set[str] = set(),
+        subclass: bool = True,
+        **kwargs,
+    ) -> ArgumentParser:
+        """
+        Adds arguments to the parser for the model.
+
+        This method modifies the provided ArgumentParser object by adding arguments related to the model. It automatically
+        skips arguments that are not relevant for inference, such as training-specific parameters. It also handles the
+        addition of subclass arguments if the subclass flag is set to True.
+
+        Args:
+            parser: The ArgumentParser object to which the arguments will be added.
+            key: A string representing the key under which the model's arguments will be nested.
+            skip: A set of strings representing the names of arguments to be skipped.
+            subclass: A boolean indicating whether to support subclasses. When True, there must be some specification provided
+                as to which subclass to use.
+
+        Keyword Args:
+            Forwarded to the `add_class_arguments` or `add_subclass_arguments` method.
+
+        Returns:
+            The modified ArgumentParser object with the model's arguments added.
+        """
+        # Since this will be for inference we assume that training related arguments are not needed.
+        skip_args = {
+            param.name
+            for param in signature(Task).parameters.values()
+            if param.name not in {"self", "checkpoint", "strict_checkpoint"}
+        }.union(skip)
+
+        parser.add_argument(
+            "checkpoint",
+            type=os.PathLike,
+            help="Path to the checkpoint. Can be a lightning or safetensors file.",
+        )
+        parser.add_argument(
+            "-d",
+            "--device",
+            type=str,
+            default="cpu",
+            help="Device to use for inference.",
+        )
+
+        if subclass:
+            parser.add_subclass_arguments(cls, key, skip=cast(Any, skip_args), **kwargs)
+            parser.link_arguments("checkpoint", "model.init_args.checkpoint")
+        else:
+            parser.add_class_arguments(cls, key, skip=cast(Any, skip_args), **kwargs)
+            parser.link_arguments("checkpoint", "model.checkpoint")
+
+        return parser
+
+    @classmethod
+    def on_after_parse(cls, cfg: Namespace, key: str = "model") -> Namespace:
+        """
+        Processes the configuration after parsing to ensure the model is correctly instantiated.
+
+        The main function of this method is to eliminate the need for the user to manually specify the model configuration
+        in addition to a checkpoint path. It handles model instantiation based on the provided checkpoint as follows:
+            - If a model config was provided and instantiated, it is used as is.
+            - If a safetensors checkpoint was provided, it attempts to find "config.yaml" or "config.json" in the same
+                directory as the checkpoint and uses it to instantiate the model. It is expected that the config file will
+                specify the class path and initialization arguments for the model as needed
+            - If a lightning checkpoint was provided, it instantiates the calling class directly from hyperparameters
+                in the checkpoint. Note that this approach cannot infer the desired class type from the checkpoint.
+
+        Args:
+            cfg: The Namespace object containing the parsed arguments.
+            key: A string representing the key under which the model's configuration is stored.
+
+        Returns:
+            The Namespace object with the model instantiated and added to it.
+        """
+        # If a model config was not provided try to derive one
+        if not isinstance(cfg.get(key, None), cls):
+            src = Path(cfg.checkpoint)
+
+            # For SafeTensors checkpoints we will look for an associated config file
+            if src.suffix == ".safetensors":
+                for loader, suffix in (yaml.safe_load, ".yaml"), (json.load, ".json"):
+                    target = (src.parent / "config").with_suffix(suffix)
+                    if target.is_file():
+                        with open(target, "r") as f:
+                            model_cfg = loader(f)
+                            # NOTE: Must explicitly instantiate with tuple()
+                            cfg.model = instantiate_class(tuple(), init=model_cfg)
+                            cfg.model.checkpoint = src
+                            break
+                else:
+                    raise FileNotFoundError(f"Config file not found for {src}")
+
+            # For lightning checkpoints we will try to load the model from the checkpoint
+            # NOTE: This only works if desired class to be loaded is `cls`
+            # TODO: This will double-load checkpoints. Once in the initial call, and again in setup().
+            # I don't know if we want to continue to support lightning checkpoints from the CLI.
+            else:
+                cfg.model = cls.load_from_checkpoint(src)
+                cfg.model.checkpoint = src
+
+        return cfg

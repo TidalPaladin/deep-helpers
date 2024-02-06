@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os
 from abc import ABCMeta
 from pathlib import Path
 from typing import Any, Dict, Final, Iterator, List, Optional, Tuple, TypeVar, Union, cast
@@ -103,7 +104,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
     def __init__(
         self,
         tasks: List[Union[str, Tuple[str, Task]]],
-        checkpoint: Optional[str] = None,
+        checkpoint: str | os.PathLike | None = None,
         strict_checkpoint: bool = True,
         cycle: bool = True,
         **kwargs,
@@ -112,7 +113,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         super().__init__(**kwargs)
         self._tasks = nn.ModuleDict({k: v for k, v in (_get_task(task, **kwargs) for task in tasks)})
         self.cycle = cycle
-        self.checkpoint = checkpoint
+        self.checkpoint = Path(checkpoint) if checkpoint is not None else None
         self.strict_checkpoint = strict_checkpoint
 
     @property
@@ -120,8 +121,8 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return Path(self._checkpoint) if self._checkpoint is not None else None
 
     @checkpoint.setter
-    def checkpoint(self, value: Optional[Union[str, Path]]) -> None:
-        self._checkpoint = Path(value) if isinstance(value, str) else value
+    def checkpoint(self, value: str | os.PathLike | None) -> None:
+        self._checkpoint = Path(value) if value is not None else value
         for task in self._tasks.values():
             task.checkpoint = self._checkpoint
 

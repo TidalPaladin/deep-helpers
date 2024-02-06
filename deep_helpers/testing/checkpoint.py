@@ -27,7 +27,6 @@ def checkpoint_factory(
         task: Task.
         root: Root directory. Defaults to a temporary directory.
         filename: Checkpoint filename. Defaults to None.
-        set_env: Whether to set the environment variable for the checkpoint directory.
 
     Returns:
         Path to the checkpoint.

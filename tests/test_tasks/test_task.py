@@ -6,8 +6,10 @@ from copy import deepcopy
 import pytest
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 import torchmetrics as tm
 import yaml
+from jsonargparse import ActionConfigFile, ArgumentParser
 
 from deep_helpers.cli import main as cli_main
 from deep_helpers.structs import Mode
@@ -220,3 +222,33 @@ class TestTask:
 
         log_metric_count = sum(1 for call in log_dict_spy.mock_calls for k in call.args[0].keys() if k == "val/acc")
         assert log_metric_count == 1
+
+    @pytest.mark.parametrize("subclass", [False, True])
+    def test_create_parser(self, subclass):
+        parser = ArgumentParser()
+        parser = CustomTask.add_args_to_parser(parser, subclass=subclass)
+        assert isinstance(parser, ArgumentParser)
+        with pytest.raises(SystemExit, match="0"):
+            parser.parse_args(["--help"])
+
+    def test_parser_safetensors(self, task):
+        # Create the checkpoint
+        checkpoint_path = checkpoint_factory(task, filename="model.safetensors")
+
+        # Create the config
+        config = {
+            "class_path": f"tests.conftest.{task.__class__.__name__}",
+            "init_args": {"strict_checkpoint": True},
+        }
+        with open(checkpoint_path.parent / "config.yaml", "w") as f:
+            yaml.dump(config, f)
+
+        parser = ArgumentParser()
+        parser.add_argument("--config", action=ActionConfigFile)
+        parser = CustomTask.add_args_to_parser(parser)
+        cfg = parser.parse_args([str(checkpoint_path)])
+        cfg = parser.instantiate_classes(cfg)
+        cfg = task.on_after_parse(cfg)
+
+        assert str(cfg.checkpoint) == str(checkpoint_path)
+        assert isinstance(cfg.model, nn.Module)
