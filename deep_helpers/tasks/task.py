@@ -512,6 +512,12 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             type=os.PathLike,
             help="Path to the checkpoint. Can be a lightning or safetensors file.",
         )
+        parser.add_argument(
+            "-d", "--device",
+            type=torch.device,
+            default="cpu",
+            help="Device to use for inference.",
+        )
 
         if subclass:
             parser.add_subclass_arguments(cls, key, skip=cast(Any, skip_args), **kwargs)
@@ -519,6 +525,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         else:
             parser.add_class_arguments(cls, key, skip=cast(Any, skip_args), **kwargs)
             parser.link_arguments("checkpoint", "model.checkpoint")
+
         return parser
 
     @classmethod
