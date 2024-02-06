@@ -553,7 +553,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                     if target.is_file():
                         with open(target, "r") as f:
                             model_cfg = loader(f)
-                            cfg.model = instantiate_class([], init=model_cfg)
+                            # NOTE: Must explicitly instantiate with tuple()
+                            cfg.model = instantiate_class(tuple(), init=model_cfg)
                             cfg.model.checkpoint = src
                             break
                 else:
