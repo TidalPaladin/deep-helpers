@@ -151,6 +151,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
             yield name, cast(Task, task)
 
     def setup(self, stage: str):
+        self._torchscript_unsafe_init()
         for _, task in self:
             # Update the trainer reference in each task
             task.trainer = self.trainer

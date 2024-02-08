@@ -10,6 +10,7 @@ import torch.nn as nn
 import torchmetrics as tm
 import yaml
 from jsonargparse import ActionConfigFile, ArgumentParser
+from torch import Tensor
 
 from deep_helpers.cli import main as cli_main
 from deep_helpers.structs import Mode
@@ -252,3 +253,9 @@ class TestTask:
 
         assert str(cfg.checkpoint) == str(checkpoint_path)
         assert isinstance(cfg.model, nn.Module)
+
+    def test_torchscript(self, task):
+        model = task.to_torchscript()
+        x = torch.rand(1, 3, 28, 28)
+        output = model(x)
+        assert isinstance(output, Tensor)
