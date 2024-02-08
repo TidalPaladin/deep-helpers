@@ -188,8 +188,6 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         weight_decay_exemptions: Set[str] = set(),
     ):
         super(Task, self).__init__()
-        self.state = State()
-        self.metrics = MetricStateCollection()
         self.optimizer_init = optimizer_init
         self.lr_scheduler_init = lr_scheduler_init
         self.lr_scheduler_interval = lr_interval
@@ -200,6 +198,12 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
         self.weight_decay_exemptions = set(weight_decay_exemptions)
+
+    @torch.jit.unused
+    def _torchscript_unsafe_init(self, *args, **kwargs) -> None:
+        r"""Runs init methods that cannot be scripted by TorchScript"""
+        self.state = State()
+        self.metrics = MetricStateCollection()
 
     @abstractmethod
     def create_metrics(self, state: State) -> MetricCollection:
@@ -217,7 +221,8 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         raise NotImplementedError  # pragma: no cover
 
     @property
-    def attached_task(self) -> "Task":
+    @torch.jit.unused
+    def attached_task(self):
         r"""Returns the task attached to the current :class:`Trainer`. This is useful when multiple tasks are nested."""
         return self.trainer.lightning_module
 
@@ -306,6 +311,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                         m.reset()
 
     def setup(self, *args, **kwargs):
+        self._torchscript_unsafe_init()
         if self.checkpoint is not None:
             self._safe_load_checkpoint()
 

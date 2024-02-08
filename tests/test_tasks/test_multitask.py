@@ -270,3 +270,9 @@ class TestMultiTask:
             cli_main()
         except SystemExit as e:
             raise e.__context__ if e.__context__ is not None else e
+
+    @pytest.mark.xfail(reason="MultiTask does not support torchscript")
+    def test_torchscript(self, multitask):
+        model = multitask.to_torchscript()
+        x = torch.rand(1, 3, 28, 28)
+        model(x)
