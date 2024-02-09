@@ -241,4 +241,4 @@ class LoggingCallback(Callback, ABC, Generic[I, O, T]):
         if not pl_module.state.sanity_checking:
             for integration in self.integrations:
                 if integration.integrates_with(pl_module.logger):
-                    integration(target, pl_module, self.name, step)
+                    integration(target, pl_module, tag, step)

@@ -91,6 +91,7 @@ def is_multidim_tensor(data: Any) -> bool:
 
 def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     r"""Uncollates a batch dictionary into an iterator of example dictionaries.
+
     This is the inverse of :func:`collate_fn`. Non-sequence elements are repeated
     for each example in the batch. If examples in the batch have different
     sequence lengths, the iterator will be truncated to the shortest sequence. If length-1
@@ -100,6 +101,7 @@ def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     Args:
         batch: The batch dictionary to uncollate.
         batch_size: The batch size. If not provided, the batch size is inferred from ``batch``.
+
     Returns:
         An iterator of example dictionaries.
     """
@@ -118,7 +120,7 @@ def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     elif not lengths and any(isinstance(v, Tensor) and v.numel() for v in sequences.values()):
         _batch_size = 1
     else:
-        _batch_size = min(lengths.values(), default=0)
+        _batch_size = min(lengths.values(), default=batch_size if batch_size is not None else 0)
 
     # Check the batch size against the user-provided batch size
     if batch_size is not None:
@@ -131,14 +133,25 @@ def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
     else:
         batch_size = _batch_size
 
-    # expand any length-1 sequences to the batch size
+    # Expand any trival sequences to the batch size
+    # and slice any sequences that are longer than the batch size to the batch size
     for k, v in sequences.items():
+        # Tensors are expanded / clipped to the batch size as needed
         if isinstance(v, Tensor) and v.numel():
             sequences[k] = (
-                v.view(1).expand(batch_size) if not is_multidim_tensor(v) else v.expand(batch_size, *v.shape[1:])
+                v.view(1).expand(batch_size)
+                if not is_multidim_tensor(v)
+                else v.expand(batch_size, *v.shape[1:])
+                if v.shape[0] <= batch_size
+                else v[:batch_size]
             )
+        # Length 1 sequences are expanded to the batch size
         elif len(v) == 1:
             sequences[k] = list(v) * batch_size
+        # Length 0 sequences will appear in each yielded output as an empty sequence
+        # of the same type
+        elif len(v) == 0:
+            sequences[k] = [v] * batch_size
 
     # repeat non-sequence and non-dict elements
     non_sequences = {

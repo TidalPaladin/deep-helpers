@@ -6,13 +6,16 @@ from copy import deepcopy
 import pytest
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 import torchmetrics as tm
 import yaml
+from jsonargparse import ActionConfigFile, ArgumentParser
+from torch import Tensor
 
 from deep_helpers.cli import main as cli_main
 from deep_helpers.structs import Mode
 from deep_helpers.testing import checkpoint_factory
-from tests.conftest import CustomTask
+from tests.conftest import DEFAULT_OPTIMIZER_INIT, CustomTask
 
 
 class TestTask:
@@ -31,6 +34,37 @@ class TestTask:
         assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
         assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
         assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
+
+    @pytest.mark.parametrize(
+        "weight_decay_exemptions,groups",
+        [
+            (set(), 1),
+            ({"bias"}, 2),
+            ({"Conv2d"}, 2),
+        ],
+    )
+    def test_weight_decay_filter(self, weight_decay_exemptions, groups):
+        optimizer_init = {"class_path": "torch.optim.AdamW", "init_args": {"lr": 0.001, "weight_decay": 0.1}}
+        lr_scheduler_init = {
+            "class_path": "torch.optim.lr_scheduler.StepLR",
+            "init_args": {"step_size": 10, "gamma": 0.1},
+        }
+        lr_scheduler_interval = "epoch"
+        lr_scheduler_monitor = "val_loss"
+
+        task = CustomTask(
+            optimizer_init,
+            lr_scheduler_init,
+            lr_scheduler_interval,
+            lr_scheduler_monitor,
+            weight_decay_exemptions=weight_decay_exemptions,
+        )
+        result = task.configure_optimizers()
+        assert isinstance(result["optimizer"], torch.optim.AdamW)
+        assert len(result["optimizer"].param_groups) == groups
+        exp_params = sum(1 for _ in task.parameters())
+        actual_params = sum(1 for pg in result["optimizer"].param_groups for p in pg["params"])
+        assert exp_params == actual_params
 
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test"])
@@ -89,7 +123,7 @@ class TestTask:
             },
             "model": {
                 "class_path": f"tests.conftest.{task.__class__.__name__}",
-                "init_args": {},
+                "init_args": {"optimizer_init": DEFAULT_OPTIMIZER_INIT},
             },
             "data": {
                 "class_path": f"tests.conftest.{datamodule().__class__.__name__}",
@@ -97,6 +131,8 @@ class TestTask:
                     "batch_size": 4,
                 },
             },
+            "compile": True,
+            "float32_matmul_precision": "highest",
         }
 
         config = {
@@ -114,10 +150,16 @@ class TestTask:
             stage,
         ]
 
+        compile = mocker.patch("deep_helpers.cli.try_compile_model")
+        precision = mocker.patch("torch.set_float32_matmul_precision")
+
         try:
             cli_main()
         except SystemExit as e:
             raise e.__context__ if e.__context__ is not None else e
+
+        compile.assert_called_once()
+        precision.assert_called_once_with("highest")
 
     @pytest.mark.parametrize("from_env", [False, True])
     def test_create(self, mocker, task, from_env):
@@ -130,9 +172,20 @@ class TestTask:
         assert isinstance(result, task.__class__)
 
     @pytest.mark.parametrize("strict", [False, True])
-    def test_load_checkpoint(self, mocker, task, strict):
+    def test_load_torch_checkpoint(self, mocker, task, strict):
         m = mocker.patch("deep_helpers.tasks.task.load_checkpoint")
         checkpoint_path = checkpoint_factory(task)
+        task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
+        task.setup()
+        m.assert_called()
+        call = m.mock_calls[0]
+        assert isinstance(call.args[-1], dict)
+        assert call.kwargs["strict"] == strict
+
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_load_safetensors_checkpoint(self, mocker, task, strict):
+        m = mocker.patch("deep_helpers.tasks.task.load_checkpoint")
+        checkpoint_path = checkpoint_factory(task, filename="model.safetensors")
         task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
         task.setup()
         m.assert_called()
@@ -170,3 +223,39 @@ class TestTask:
 
         log_metric_count = sum(1 for call in log_dict_spy.mock_calls for k in call.args[0].keys() if k == "val/acc")
         assert log_metric_count == 1
+
+    @pytest.mark.parametrize("subclass", [False, True])
+    def test_create_parser(self, subclass):
+        parser = ArgumentParser()
+        parser = CustomTask.add_args_to_parser(parser, subclass=subclass)
+        assert isinstance(parser, ArgumentParser)
+        with pytest.raises(SystemExit, match="0"):
+            parser.parse_args(["--help"])
+
+    def test_parser_safetensors(self, task):
+        # Create the checkpoint
+        checkpoint_path = checkpoint_factory(task, filename="model.safetensors")
+
+        # Create the config
+        config = {
+            "class_path": f"tests.conftest.{task.__class__.__name__}",
+            "init_args": {"strict_checkpoint": True},
+        }
+        with open(checkpoint_path.parent / "config.yaml", "w") as f:
+            yaml.dump(config, f)
+
+        parser = ArgumentParser()
+        parser.add_argument("--config", action=ActionConfigFile)
+        parser = CustomTask.add_args_to_parser(parser)
+        cfg = parser.parse_args([str(checkpoint_path)])
+        cfg = parser.instantiate_classes(cfg)
+        cfg = task.on_after_parse(cfg)
+
+        assert str(cfg.checkpoint) == str(checkpoint_path)
+        assert isinstance(cfg.model, nn.Module)
+
+    def test_torchscript(self, task):
+        model = task.to_torchscript()
+        x = torch.rand(1, 3, 28, 28)
+        output = model(x)
+        assert isinstance(output, Tensor)

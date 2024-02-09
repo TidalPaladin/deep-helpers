@@ -220,4 +220,6 @@ class BaseCallbackTest:
         mock_calls = logger.experiment.log.mock_calls
         for call in mock_calls:
             assert isinstance(call.args[0], dict)
+            expected_key = pl_module.state.with_postfix(callback.name)
+            assert expected_key in call.args[0].keys()
             assert "commit" in call.kwargs and not call.kwargs["commit"]

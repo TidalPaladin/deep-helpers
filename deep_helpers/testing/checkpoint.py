@@ -9,6 +9,7 @@ from typing import Optional
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint
+from safetensors.torch import save_file
 
 from deep_helpers.tasks import Task
 
@@ -20,12 +21,12 @@ def checkpoint_factory(
     set_env: bool = True,
 ) -> Path:
     r"""Create a dummy checkpoint for a task. Useful for testing.
+    Supports PyTorch and SafeTensors formats.
 
     Args:
         task: Task.
         root: Root directory. Defaults to a temporary directory.
         filename: Checkpoint filename. Defaults to None.
-        set_env: Whether to set the environment variable for the checkpoint directory.
 
     Returns:
         Path to the checkpoint.
@@ -40,26 +41,33 @@ def checkpoint_factory(
     path = Path(root, filename)
     if path.is_file():
         return path
+    if not root.is_dir():
+        root.mkdir()
 
-    cb = ModelCheckpoint(path.parent, path.name)
-    trainer = pl.Trainer(
-        default_root_dir=root,
-        accelerator="cpu",
-        callbacks=[cb],
-        max_steps=1,
-        limit_val_batches=1,
-        logger=[],
-        num_sanity_val_steps=0,
-    )
-    # We need to call fit to initialize the model and save a checkpoint, but it is missing data which is an error.
-    # Silently ignore the error, but ensure the checkpoint was created before returning.
-    try:
-        trainer.fit(task)
-    except Exception as e:
-        if trainer.model is None:
-            raise AttributeError("Model was not attached to the trainer.") from e
-    assert trainer.model is not None
-    trainer.save_checkpoint(path)
+    if path.suffix == ".safetensors":
+        tensors = task.state_dict()
+        save_file(tensors, path)
+    else:
+        cb = ModelCheckpoint(path.parent, path.name)
+        trainer = pl.Trainer(
+            default_root_dir=root,
+            accelerator="cpu",
+            callbacks=[cb],
+            max_steps=1,
+            limit_val_batches=1,
+            logger=[],
+            num_sanity_val_steps=0,
+        )
+        # We need to call fit to initialize the model and save a checkpoint, but it is missing data which is an error.
+        # Silently ignore the error, but ensure the checkpoint was created before returning.
+        try:
+            trainer.fit(task)
+        except Exception as e:
+            if trainer.model is None:
+                raise AttributeError("Model was not attached to the trainer.") from e
+        assert trainer.model is not None
+        trainer.save_checkpoint(path)
+
     assert path.is_file(), "fixture failed to create checkpoint file for testing"
 
     # Set the environment variable for the checkpoint directory.

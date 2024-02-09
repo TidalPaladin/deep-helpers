@@ -5,6 +5,7 @@ from .metric import MetricLoggingCallback
 from .multitask import MultiTaskCallbackWrapper
 from .queue import QueuedLoggingCallback
 from .table import TableCallback
+from .wandb import WandBLoggerIntegration
 
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "TableCallback",
     "LoggerIntegration",
     "MultiTaskCallbackWrapper",
+    "WandBLoggerIntegration",
 ]

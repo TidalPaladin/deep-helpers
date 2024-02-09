@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 
 import sys
+from pathlib import Path
 
 import pytest
 import pytorch_lightning as pl
 import torch
+import torch.nn as nn
 import yaml
 
 from deep_helpers.callbacks import LoggingCallback, MultiTaskCallbackWrapper
 from deep_helpers.cli import main as cli_main
-from deep_helpers.tasks import MultiTask, Task
+from deep_helpers.tasks import TASKS, MultiTask, Task
 
 
 class DummyCallback(LoggingCallback):
@@ -45,6 +47,12 @@ def multitask(logger):
 
 class TestMultiTask:
     def test_len(self, multitask):
+        assert len(multitask) == 2
+
+    def test_task_class_input(self):
+        task = TASKS.get("custom-task").instantiate_with_metadata().fn
+        multitask = MultiTask(tasks=["custom-task", ("custom-task2", task)])
+        assert isinstance(multitask, MultiTask)
         assert len(multitask) == 2
 
     @pytest.mark.parametrize(
@@ -89,21 +97,21 @@ class TestMultiTask:
             "class_path": "torch.optim.lr_scheduler.StepLR",
             "init_args": {"step_size": 10, "gamma": 0.1},
         }
-        lr_scheduler_interval = "epoch"
-        lr_scheduler_monitor = "val_loss"
+        lr_interval = "epoch"
+        lr_monitor = "val_loss"
 
         task = MultiTask(
             tasks=["custom-task"],
             optimizer_init=optimizer_init,
             lr_scheduler_init=lr_scheduler_init,
-            lr_scheduler_interval=lr_scheduler_interval,
-            lr_scheduler_monitor=lr_scheduler_monitor,
+            lr_interval=lr_interval,
+            lr_monitor=lr_monitor,
         )
         result = task.configure_optimizers()
         assert isinstance(result["optimizer"], torch.optim.Adam)
         assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
-        assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
-        assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
+        assert result["lr_scheduler"]["monitor"] == lr_monitor
+        assert result["lr_scheduler"]["interval"] == lr_interval
 
     @pytest.mark.parametrize(
         "hook",
@@ -126,6 +134,52 @@ class TestMultiTask:
         # We just want to make sure that the hook is called without error.
         # This hook is manually subclassed in MultiTask
         multitask.setup("stage")
+
+    def test_checkpoint_getter_setter(self, multitask):
+        # Test checkpoint setter
+        checkpoint_path = "test_checkpoint_path"
+        multitask.checkpoint = checkpoint_path
+        assert multitask.checkpoint == Path(checkpoint_path)
+        for _, task in multitask:
+            assert task.checkpoint == Path(checkpoint_path)
+
+    def test_strict_checkpoint_getter_setter(self, multitask):
+        multitask.strict_checkpoint = True
+        assert multitask.strict_checkpoint
+        for _, task in multitask:
+            assert task.strict_checkpoint
+
+    def test_setup_loads_checkpoint(self, mocker, multitask, tmp_path):
+        checkpoint = tmp_path / "checkpoint_path"
+        cp = {"state_dict": multitask.state_dict()}
+        torch.save(cp, checkpoint)
+        multitask.checkpoint = checkpoint
+        spy = mocker.spy(multitask, "load_state_dict")
+        spy2 = mocker.spy(torch, "load")
+        multitask.setup("stage")
+        spy.assert_called_once()
+        spy2.assert_called_once_with(checkpoint, map_location="cpu")
+
+    def test_find_attribute(self, multitask):
+        linear_layer = torch.nn.Linear(10, 10)
+        multitask._tasks["custom-task"].linear_layer = linear_layer
+        found_attr = multitask.find_attribute("linear_layer")
+        assert found_attr == linear_layer
+
+    @pytest.mark.parametrize("attr, attr_type", [("linear_layer", nn.Module), ("weight", nn.Parameter)])
+    def test_share_attribute(self, multitask, attr, attr_type):
+        if attr_type == nn.Module:
+            attr_instance = torch.nn.Linear(10, 10)
+            copy = torch.nn.Linear(10, 10)
+        else:  # attr_type == nn.Parameter
+            attr_instance = nn.Parameter(torch.randn(10, 10))
+            copy = nn.Parameter(torch.randn(10, 10))
+        multitask._tasks["custom-task"].__setattr__(attr, attr_instance)
+        multitask._tasks["custom-task2"].__setattr__(attr, copy)
+        multitask.share_attribute(attr)
+        for _, task in multitask:
+            assert hasattr(task, attr)
+            assert task.__getattr__(attr) is attr_instance
 
     @pytest.mark.parametrize("cycle", [False, True])
     @pytest.mark.parametrize("named_datasets", [False, True])
@@ -216,3 +270,9 @@ class TestMultiTask:
             cli_main()
         except SystemExit as e:
             raise e.__context__ if e.__context__ is not None else e
+
+    @pytest.mark.xfail(reason="MultiTask does not support torchscript")
+    def test_torchscript(self, multitask):
+        model = multitask.to_torchscript()
+        x = torch.rand(1, 3, 28, 28)
+        model(x)

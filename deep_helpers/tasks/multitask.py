@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import os
 from abc import ABCMeta
+from pathlib import Path
 from typing import Any, Dict, Final, Iterator, List, Optional, Tuple, TypeVar, Union, cast
 
 import torch.nn as nn
 import torchmetrics as tm
 from pytorch_lightning.core.hooks import CheckpointHooks, ModelHooks
 
-from .task import TASKS, Task
+from ..structs import Mode
+from .task import TASKS, StateMixin, Task
 
 
 T = TypeVar("T")
@@ -16,6 +19,7 @@ HOOKS: Final = [
     ModelHooks,
     CheckpointHooks,
 ]
+NOT_FORWARDABLE: Final = ("configure_sharded_model",)  # Deprecated after PL 2.1, will raise exception if forwarded
 
 
 def update(dest: Dict, src: Dict) -> None:
@@ -41,7 +45,12 @@ class ForwardHooks(ABCMeta):
             for method_name in dir(hook):
                 method = getattr(hook, method_name)
                 # Skip private methods and methods with overriden implementations
-                if callable(method) and method_name not in attrs and not method_name.startswith("__"):
+                if (
+                    callable(method)
+                    and method_name not in attrs
+                    and not method_name.startswith("__")
+                    and method_name not in NOT_FORWARDABLE
+                ):
                     setattr(new_class, method_name, cls.recursive_task_wrapper(funcname=method_name))
 
         return new_class
@@ -50,6 +59,14 @@ class ForwardHooks(ABCMeta):
     def recursive_task_wrapper(funcname) -> Any:
         def recurse_on_tasks(self, *args, **kwargs):
             assert isinstance(self, MultiTask)
+
+            # Ensure we call StateMixin hooks on the MultiTask.
+            # We assume these hooks aren't returning anything.
+            if hasattr(StateMixin, funcname):
+                func = getattr(StateMixin, funcname)
+                func(self, *args, **kwargs)
+
+            # Then recurse on each task
             result: Dict[str, Any] = {}
             for name, task in self:
                 assert not isinstance(task, MultiTask)
@@ -58,6 +75,16 @@ class ForwardHooks(ABCMeta):
             return result
 
         return recurse_on_tasks
+
+
+def _get_task(key: Union[str, Tuple[str, Task]], **kwargs) -> Tuple[str, Task]:
+    if isinstance(key, str):
+        return key, cast(Task, TASKS.get(key).instantiate_with_metadata(**kwargs).fn)
+    else:
+        name, task = key
+        if not isinstance(task, Task):
+            raise TypeError(f"Expected Task, got {type(task)}")
+        return name, task
 
 
 class MultiTask(Task, metaclass=ForwardHooks):
@@ -76,15 +103,38 @@ class MultiTask(Task, metaclass=ForwardHooks):
 
     def __init__(
         self,
-        tasks: List[Union[str, Task]],
-        checkpoint: Optional[str] = None,
+        tasks: List[Union[str, Tuple[str, Task]]],
+        checkpoint: str | os.PathLike | None = None,
         strict_checkpoint: bool = True,
         cycle: bool = True,
         **kwargs,
     ):
-        super().__init__(checkpoint=checkpoint, strict_checkpoint=strict_checkpoint, **kwargs)
-        self._tasks = nn.ModuleDict({t: cast(Task, TASKS.get(t).instantiate_with_metadata(**kwargs).fn) for t in tasks})
+        self._tasks = {}
+        super().__init__(**kwargs)
+        self._tasks = nn.ModuleDict({k: v for k, v in (_get_task(task, **kwargs) for task in tasks)})
         self.cycle = cycle
+        self.checkpoint = Path(checkpoint) if checkpoint is not None else None
+        self.strict_checkpoint = strict_checkpoint
+
+    @property
+    def checkpoint(self) -> Optional[Path]:
+        return Path(self._checkpoint) if self._checkpoint is not None else None
+
+    @checkpoint.setter
+    def checkpoint(self, value: str | os.PathLike | None) -> None:
+        self._checkpoint = Path(value) if value is not None else value
+        for task in self._tasks.values():
+            task.checkpoint = self._checkpoint
+
+    @property
+    def strict_checkpoint(self) -> bool:
+        return self._strict_checkpoint
+
+    @strict_checkpoint.setter
+    def strict_checkpoint(self, value: bool) -> None:
+        self._strict_checkpoint = value
+        for task in self._tasks.values():
+            task.strict_checkpoint = self._strict_checkpoint
 
     def __len__(self) -> int:
         return len(self._tasks)
@@ -101,12 +151,19 @@ class MultiTask(Task, metaclass=ForwardHooks):
             yield name, cast(Task, task)
 
     def setup(self, stage: str):
+        self._torchscript_unsafe_init()
         for _, task in self:
             # Update the trainer reference in each task
             task.trainer = self.trainer
 
-            # Run setup on each task
+            # Run setup on each task.
+            # Enure we don't load the checkpoint for each task.
+            task.checkpoint = None
             task.setup(stage)
+            task.checkpoint = self.checkpoint
+
+        if self.checkpoint is not None:
+            self._safe_load_checkpoint()
 
     def share_attribute(self, attr_name: str) -> None:
         r"""Share an attribute across all of the contained tasks."""
@@ -114,24 +171,24 @@ class MultiTask(Task, metaclass=ForwardHooks):
         setattr(self, attr_name, proto)
         self.update_attribute(attr_name, proto)
 
-    def update_attribute(self, attr_name: str, val: nn.Module) -> None:
+    def update_attribute(self, attr_name: str, val: Union[nn.Module, nn.Parameter]) -> None:
         r"""Update an attribute in all of the contained tasks."""
-        for task in self:
+        for _, task in self:
             if hasattr(task, attr_name):
                 setattr(task, attr_name, val)
 
-    def find_attribute(self, attr_name: str) -> nn.Module:
+    def find_attribute(self, attr_name: str) -> Union[nn.Module, nn.Parameter]:
         r"""Find an attribute in any of the contained tasks. Returns the first matching attribute."""
-        for task in self:
-            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
+        for _, task in self:
+            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), (nn.Module, nn.Parameter)):
                 return val
         raise AttributeError(attr_name)
 
-    def find_all_attributes(self, attr_name: str) -> List[nn.Module]:
+    def find_all_attributes(self, attr_name: str) -> List[Union[nn.Module, nn.Parameter]]:
         r"""Find an attribute in any of the contained tasks. Returns all matching attributes."""
-        result: List[nn.Module] = []
+        result: List[Union[nn.Module, nn.Parameter]] = []
         for _, task in self:
-            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), nn.Module):
+            if hasattr(task, attr_name) and isinstance((val := getattr(task, attr_name)), (nn.Module, nn.Parameter)):
                 result.append(val)
         return result
 
@@ -159,6 +216,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         )
 
     def training_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.TRAIN
         return self._training_step_cycle(batch, batch_idx) if self.cycle else self._training_step_all(batch, batch_idx)
 
     def _training_step_cycle(self, batch: Any, batch_idx: int) -> Any:
@@ -175,6 +233,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.VAL
         output = {}
         for _, task in self:
             task_output = task.validation_step(batch, batch_idx)
@@ -183,6 +242,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.TEST
         output = {}
         for _, task in self:
             task_output = task.test_step(batch, batch_idx)
@@ -191,6 +251,7 @@ class MultiTask(Task, metaclass=ForwardHooks):
         return output
 
     def predict_step(self, batch: Any, batch_idx: int) -> Any:
+        assert self.state.mode == Mode.PREDICT
         output = {}
         for name, task in self:
             task_output = task.predict_step(batch, batch_idx)
