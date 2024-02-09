@@ -49,6 +49,8 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
     negate_priority: bool = False
     queues: QueueStateCollection = field(default_factory=QueueStateCollection)
 
+    _last_flush_step: int = field(init=False, default=0, repr=False)
+
     @abstractclassmethod
     def get_priority(cls, example: Dict[str, Any], pred: Dict[str, Any]) -> Optional[Union[int, float]]:
         r"""Compute a priority for an example/prediction pair. When logging with a finite
@@ -94,7 +96,7 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
         # if a flush interval was specified, check if we need to flush
         # TODO should we use batch_idx for checking against flush_interval?
         step = trainer.global_step
-        if self.flush_interval and (step % self.flush_interval == 0) and step:
+        if self.flush_interval and (step % self.flush_interval == 0) and step != self._last_flush_step:
             self.flush_queues(pl_module, state.mode, step)
 
     def _on_epoch_end(
@@ -130,6 +132,7 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
                 for example, pred in self.dequeue_all(queue)
             ]
             self.wrapped_log(targets, pl_module, tag, step)
+        self._last_flush_step = step
 
     @torch.no_grad()
     def enqueue(
