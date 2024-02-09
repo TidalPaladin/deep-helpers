@@ -354,7 +354,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
 
         # Fork RNG to avoid validation data affecting training data and to ensure that
         # the step is deterministic.
-        with torch.random.fork_rng(devices=[self.device] if self.device != torch.device("cpu") else None):
+        with torch.random.fork_rng(devices=[self.device] if self.device != torch.device("cpu") else []):
             torch.random.manual_seed(42)
             output = self.step(batch, batch_idx, self.state, metrics)
 
@@ -369,7 +369,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics = self.metrics.get(self.state)
 
         # Fork RNG to ensure that the step is deterministic.
-        with torch.random.fork_rng(devices=[self.device] if self.device != torch.device("cpu") else None):
+        with torch.random.fork_rng(devices=[self.device] if self.device != torch.device("cpu") else []):
             torch.random.manual_seed(42)
             output = self.step(batch, batch_idx, self.state, metrics)
 
