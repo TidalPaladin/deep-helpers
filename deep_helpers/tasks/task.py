@@ -19,7 +19,6 @@ from lightning_utilities.core.rank_zero import rank_zero_info
 from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
 from registry import Registry
-from safetensors import safe_open
 from torch import Tensor
 from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
@@ -27,6 +26,7 @@ from torchmetrics import MetricCollection
 # from ..callbacks.wandb import WandBCheckpointCallback
 from ..data import SupportsDatasetNames
 from ..helpers import load_checkpoint
+from ..safetensors import iterate_safetensors_state_dict
 from ..structs import MetricStateCollection, Mode, State
 
 
@@ -323,13 +323,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         rank_zero_info(f"Loading checkpoint (strict={self.strict_checkpoint}): {checkpoint_path}")
 
         if checkpoint_path.suffix == ".safetensors":
-            state_dict = {}
-            with safe_open(checkpoint_path, framework="pt", device=self.device.index) as f:  # type: ignore
-                # Handle case where "state_dict" is a key in the file
-                if isinstance(f, dict) and "state_dict" in f.keys():
-                    f = f["state_dict"]
-                for k in f.keys():
-                    state_dict[k] = f.get_tensor(k)  # type: ignore
+            state_dict = {k: v for k, v in iterate_safetensors_state_dict(checkpoint_path, device=self.device)}
         else:
             state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
         load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
