@@ -31,7 +31,7 @@ class TestCheckpointFactory:
         if exp.endswith(".safetensors"):
             safe_open(result, framework="pt")
         else:
-            torch.load(result)
+            torch.load(result, weights_only=False)
 
     def test_set_env_var(self, task):
         task.CHECKPOINT_ENV_VAR = "MY_ENV_VAR"

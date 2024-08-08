@@ -24,6 +24,7 @@ class PrioritizedItem(Generic[P]):
 
 class QueueStateCollection(StateCollection[PriorityQueue[PrioritizedItem[P]]]):
     r"""Collection that associates each State with a PriorityQueue."""
+
     QueueType = PriorityQueue[PrioritizedItem]
     _lookup: Dict[State, QueueType]
 

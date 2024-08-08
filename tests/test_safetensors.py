@@ -170,4 +170,4 @@ def test_map_location(mocker, tmp_path, torch_checkpoint):
     dest = tmp_path / "dest.safetensors"
     spy = mocker.spy(torch, "load")
     convert_to_safetensors(torch_checkpoint, dest)
-    spy.assert_called_once_with(torch_checkpoint, map_location="cpu")
+    spy.assert_called_once_with(torch_checkpoint, map_location="cpu", weights_only=False)

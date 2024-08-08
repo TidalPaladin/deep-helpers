@@ -11,6 +11,9 @@ import torchmetrics as tm
 import yaml
 from jsonargparse import ActionConfigFile, ArgumentParser
 from torch import Tensor
+from torch.optim.adam import Adam
+from torch.optim.adamw import AdamW
+from torch.optim.lr_scheduler import StepLR
 
 from deep_helpers.cli import main as cli_main
 from deep_helpers.structs import Mode
@@ -30,8 +33,8 @@ class TestTask:
 
         task = CustomTask(optimizer_init, lr_scheduler_init, lr_scheduler_interval, lr_scheduler_monitor)
         result = task.configure_optimizers()
-        assert isinstance(result["optimizer"], torch.optim.Adam)
-        assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
+        assert isinstance(result["optimizer"], Adam)
+        assert isinstance(result["lr_scheduler"]["scheduler"], StepLR)
         assert result["lr_scheduler"]["monitor"] == lr_scheduler_monitor
         assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
 
@@ -60,7 +63,7 @@ class TestTask:
             weight_decay_exemptions=weight_decay_exemptions,
         )
         result = task.configure_optimizers()
-        assert isinstance(result["optimizer"], torch.optim.AdamW)
+        assert isinstance(result["optimizer"], AdamW)
         assert len(result["optimizer"].param_groups) == groups
         exp_params = sum(1 for _ in task.parameters())
         actual_params = sum(1 for pg in result["optimizer"].param_groups for p in pg["params"])

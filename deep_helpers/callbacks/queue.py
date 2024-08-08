@@ -44,6 +44,7 @@ class QueuedLoggingCallback(LoggingCallback[I, O, T], ABC):
             If ``True``, use the negation of the priority return by :func:`get_priority`. Use this to log only
             the bottom-k priority items.
     """
+
     queue_size: int = 8
     flush_interval: int = 0
     negate_priority: bool = False
