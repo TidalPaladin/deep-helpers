@@ -25,8 +25,7 @@ class BaseCallbackTest:
         return request.param
 
     @pytest.fixture
-    def callback(self):
-        ...
+    def callback(self): ...
 
     @pytest.fixture
     def batch_idx(self):

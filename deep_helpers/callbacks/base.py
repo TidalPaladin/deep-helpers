@@ -25,6 +25,7 @@ class LoggerIntegration(ABC, Generic[L, T]):
     should be able to take a logging target prepared by the :class:`LoggingCallback`
     and log it to the appropriate logger.
     """
+
     logger_type: ClassVar[Type[Logger]]
 
     def integrates_with(self, logger: Logger) -> bool:

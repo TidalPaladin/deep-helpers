@@ -141,9 +141,7 @@ def uncollate(batch: D, batch_size: Optional[int] = None) -> Iterator[D]:
             sequences[k] = (
                 v.view(1).expand(batch_size)
                 if not is_multidim_tensor(v)
-                else v.expand(batch_size, *v.shape[1:])
-                if v.shape[0] <= batch_size
-                else v[:batch_size]
+                else v.expand(batch_size, *v.shape[1:]) if v.shape[0] <= batch_size else v[:batch_size]
             )
         # Length 1 sequences are expanded to the batch size
         elif len(v) == 1:

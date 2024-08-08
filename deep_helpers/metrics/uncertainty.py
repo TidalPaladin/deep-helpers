@@ -6,6 +6,8 @@ from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import torch
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from torch import Tensor
 from torchmetrics import Metric
 
@@ -47,6 +49,7 @@ class ECE(Metric):
         from_logits:
             If ``True``, expect the inputs to be unnormalized logits
     """
+
     correct: Tensor
     confidence: Tensor
     total: Tensor
@@ -267,7 +270,7 @@ class ErrorAtUncertainty(UCE):
         return entropy, err, total
 
     @staticmethod
-    def plot(entropy: Tensor, err: Tensor, ax: Optional[plt.Axes] = None) -> Optional[plt.Figure]:
+    def plot(entropy: Tensor, err: Tensor, ax: Optional[Axes] = None) -> Optional[Figure]:
         r"""Generates a plot of error rate vs uncertainty.
 
         Args:
@@ -299,17 +302,17 @@ class ErrorAtUncertainty(UCE):
         return fig
 
     @staticmethod
-    def create_fig(**kwargs) -> Tuple[plt.Figure, plt.Axes]:
+    def create_fig(**kwargs) -> Tuple[Figure, Axes]:
         r"""Sets up a Pyplot figure and axes for generating a plot of uncertainty vs error rate.
 
         Keyword Args:
             Forwarded to :func:`matplotlib.pyplot.figure`
 
         Returns:
-            Tuple of :class:`plt.Figure`, :class:`plt.Axes`.
+            Tuple of :class:`matplotlib.figure.Figure`, :class:`matplotlib.axes.Axes`.
         """
         fig = plt.figure(**kwargs)
-        ax: plt.Axes = fig.add_subplot(111)  # type: ignore
+        ax: Axes = fig.add_subplot(111)  # type: ignore
         margin = 0.05
         ax.set_xlim(0.0 - margin, 1.0 + margin)
         ax.set_ylim(0.0 - margin, 1.0 + margin)

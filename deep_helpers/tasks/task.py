@@ -45,6 +45,7 @@ O = TypeVar("O", bound=Union[Dict[str, Any], Output])
 
 class CustomOptimizerMixin(ABC):
     r"""Provides support for custom optimizers at the CLI"""
+
     optimizer_init: Dict[str, Any]
     lr_scheduler_init: Dict[str, Any]
     lr_scheduler_interval: str
@@ -325,7 +326,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         if checkpoint_path.suffix == ".safetensors":
             state_dict = {k: v for k, v in iterate_safetensors_state_dict(checkpoint_path, device=self.device)}
         else:
-            state_dict = torch.load(checkpoint_path, map_location="cpu")["state_dict"]
+            state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=False)["state_dict"]
         load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
 
     def compute_total_loss(self, output: O) -> Tensor:
@@ -455,7 +456,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
     @classmethod
     def load_from_checkpoint(cls: Type[T], checkpoint: Optional[Path], strict: bool = True, **kwargs) -> T:
         checkpoint = cls._get_checkpoint_path(checkpoint)
-        metadata = torch.load(checkpoint, map_location="cpu")
+        metadata = torch.load(checkpoint, map_location="cpu", weights_only=False)
         hparams = metadata["hyper_parameters"]
         hparams.pop("checkpoint")
         hparams.update(kwargs)

@@ -9,6 +9,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import yaml
+from torch.optim.adam import Adam
+from torch.optim.lr_scheduler import StepLR
 
 from deep_helpers.callbacks import LoggingCallback, MultiTaskCallbackWrapper
 from deep_helpers.cli import main as cli_main
@@ -108,8 +110,8 @@ class TestMultiTask:
             lr_monitor=lr_monitor,
         )
         result = task.configure_optimizers()
-        assert isinstance(result["optimizer"], torch.optim.Adam)
-        assert isinstance(result["lr_scheduler"]["scheduler"], torch.optim.lr_scheduler.StepLR)
+        assert isinstance(result["optimizer"], Adam)
+        assert isinstance(result["lr_scheduler"]["scheduler"], StepLR)
         assert result["lr_scheduler"]["monitor"] == lr_monitor
         assert result["lr_scheduler"]["interval"] == lr_interval
 
@@ -158,7 +160,7 @@ class TestMultiTask:
         spy2 = mocker.spy(torch, "load")
         multitask.setup("stage")
         spy.assert_called_once()
-        spy2.assert_called_once_with(checkpoint, map_location="cpu")
+        spy2.assert_called_once_with(checkpoint, map_location="cpu", weights_only=False)
 
     def test_find_attribute(self, multitask):
         linear_layer = torch.nn.Linear(10, 10)
