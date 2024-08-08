@@ -20,6 +20,7 @@ from pytorch_lightning.cli import instantiate_class
 from pytorch_lightning.loggers import Logger as LightningLoggerBase
 from registry import Registry
 from torch import Tensor
+from torch.distributed import barrier, is_initialized
 from torch.optim.lr_scheduler import OneCycleLR  # type: ignore
 from torchmetrics import MetricCollection
 
@@ -187,6 +188,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
         weight_decay_exemptions: Set[str] = set(),
+        sync_dist: bool = True,
     ):
         super(Task, self).__init__()
         self.optimizer_init = optimizer_init
@@ -199,6 +201,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
         self.weight_decay_exemptions = set(weight_decay_exemptions)
+        self.sync_dist = sync_dist
 
     @torch.jit.unused
     def _torchscript_unsafe_init(self, *args, **kwargs) -> None:
@@ -249,7 +252,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
             on_step=self.attached_task.trainer.training,
             on_epoch=not self.attached_task.trainer.training,
             prog_bar=False,
-            sync_dist=not self.attached_task.trainer.training,
+            sync_dist=not self.attached_task.trainer.training and self.sync_dist,
             add_dataloader_idx=add_dataloader_idx,
         )
 
@@ -274,12 +277,14 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         )
 
         if metrics_to_log:
+            if is_initialized():
+                barrier()
             self.attached_task.log_dict(
                 metrics_to_log,
                 on_step=False,
                 on_epoch=True,
                 prog_bar=False,
-                sync_dist=True,
+                sync_dist=self.sync_dist,
                 **kwargs,
             )
 
@@ -398,12 +403,16 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         state = State(Mode.VAL)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
+            if is_initialized():
+                barrier()
             self._log_inference_metrics(state, metrics)
 
     def on_test_epoch_end(self, *args, **kwargs):
         state = State(Mode.TEST)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
+            if is_initialized():
+                barrier()
             self._log_inference_metrics(state, metrics)
 
     def on_train_epoch_start(self, *args, **kwargs):
@@ -411,18 +420,24 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
             metrics.reset()
+        if is_initialized():
+            barrier()
 
     def on_validation_epoch_start(self, *args, **kwargs):
         state = State(Mode.VAL)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
             metrics.reset()
+        if is_initialized():
+            barrier()
 
     def on_test_epoch_start(self, *args, **kwargs):
         state = State(Mode.TEST)
         metrics = self.metrics.get(state)
         if isinstance(metrics, tm.MetricCollection):
             metrics.reset()
+        if is_initialized():
+            barrier()
 
     @classmethod
     def _get_checkpoint_path(cls, path: Optional[Path]) -> Path:
