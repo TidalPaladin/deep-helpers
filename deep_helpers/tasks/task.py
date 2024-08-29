@@ -459,6 +459,10 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         metadata = torch.load(checkpoint, map_location="cpu", weights_only=False)
         hparams = metadata["hyper_parameters"]
         hparams.pop("checkpoint")
+
+        # Lightning seems to inject additional keys prefixed by "_"
+        hparams = {k: v for k, v in hparams.items() if not k.startswith("_")}
+
         hparams.update(kwargs)
         model = cls(**hparams)
         model.load_state_dict(metadata["state_dict"], strict=strict)
