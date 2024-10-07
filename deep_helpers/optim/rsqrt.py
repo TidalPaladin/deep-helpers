@@ -54,10 +54,6 @@ class ReciprocalSquareRootLR(LRScheduler):
         timescale: Timescale parameter for the reciprocal square root schedule.
         optimizer: Wrapped optimizer.
         last_epoch: The index of the last epoch. Default: -1.
-
-    Shapes:
-        - base_lrs: :math:`(N,)` where :math:`N` is the number of parameter groups.
-        - get_lr: :math:`(N,)` where :math:`N` is the number of parameter groups.
     """
 
     def __init__(
