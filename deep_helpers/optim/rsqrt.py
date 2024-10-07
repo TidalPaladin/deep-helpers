@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List
 
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
@@ -74,6 +74,7 @@ class ReciprocalSquareRootLR(LRScheduler):
         self.total_steps = total_steps
         self.timescale = timescale
         super().__init__(optimizer, last_epoch)
+        self._step_count = 0
 
     def get_lr(self) -> List[float]:
         step = self._step_count
@@ -81,3 +82,8 @@ class ReciprocalSquareRootLR(LRScheduler):
             get_lr(step, base_lr, self.warmup_steps, self.cooldown_steps, self.total_steps, self.timescale)
             for base_lr in self.base_lrs
         ]
+
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        total_steps = self.total_steps
+        self.__dict__.update(state_dict)
+        self.total_steps = total_steps
