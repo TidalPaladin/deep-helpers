@@ -48,21 +48,21 @@ class ReciprocalSquareRootLR(LRScheduler):
     3. Cooldown: Linearly decreases the learning rate from the current learning rate to 0 over a specified number of steps.
 
     Args:
+        optimizer: Wrapped optimizer.
         warmup_steps: Number of steps for the warmup phase.
         cooldown_steps: Number of steps for the cooldown phase.
         total_steps: Total number of steps in the training process.
         timescale: Timescale parameter for the reciprocal square root schedule.
-        optimizer: Wrapped optimizer.
         last_epoch: The index of the last epoch. Default: -1.
     """
 
     def __init__(
         self,
+        optimizer: Optimizer,
         warmup_steps: int,
         cooldown_steps: int,
         total_steps: int,
         timescale: int,
-        optimizer: Optimizer,
         last_epoch: int = -1,
     ):
         self.warmup_steps = warmup_steps
