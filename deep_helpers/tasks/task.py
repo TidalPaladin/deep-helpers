@@ -7,7 +7,22 @@ import os
 from abc import ABC, abstractmethod
 from inspect import signature
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Generic, Iterator, Optional, Set, Type, TypedDict, TypeVar, Union, cast
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Generic,
+    Iterator,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypedDict,
+    TypeVar,
+    Union,
+    cast,
+)
 
 import pytorch_lightning as pl
 import torch
@@ -43,64 +58,26 @@ I = TypeVar("I", bound=Union[Dict[str, Any], TypedDict])
 O = TypeVar("O", bound=Union[Dict[str, Any], Output])
 
 
-class CustomOptimizerMixin(ABC):
-    r"""Provides support for custom optimizers at the CLI"""
-
-    optimizer_init: Dict[str, Any]
-    lr_scheduler_init: Dict[str, Any]
-    lr_scheduler_interval: str
-    lr_scheduler_monitor: str
-    weight_decay_exemptions: Set[str] = set()
-
-    def _params_weight_decay(self) -> Iterator[nn.Parameter]:
-        return (
-            param
-            for module in cast(nn.Module, self).modules()
-            for param_name, param in module.named_parameters()
-            if self._needs_weight_decay(module, param_name)
+def match_parameters(
+    module: nn.Module,
+    param_names: Iterator[str],
+    keys: Tuple[str, ...],
+) -> Iterator[nn.Parameter]:
+    # Check direct parameters of the current module
+    yield from (
+        param
+        for param_name, param in module.named_parameters(recurse=False)
+        if (
+            # Module class name matches a key exactly
+            module.__class__.__name__ in keys
+            # Or any part of the parameter name matches a key
+            or any(part in keys for part in param_name.split("."))
         )
+    )
 
-    def _params_no_weight_decay(self) -> Iterator[nn.Parameter]:
-        return (
-            param
-            for module in cast(nn.Module, self).modules()
-            for param_name, param in module.named_parameters()
-            if not self._needs_weight_decay(module, param_name)
-        )
-
-    def _needs_weight_decay(self, module: nn.Module, param_name: str) -> bool:
-        return not (
-            module.__class__.__name__ in self.weight_decay_exemptions
-            or any(part in self.weight_decay_exemptions for part in param_name.split("."))
-        )
-
-    def configure_optimizers(self) -> Dict[str, Any]:
-        if not self.optimizer_init:
-            raise ValueError("No optimizer specified")
-        result: Dict[str, Any] = {}
-        weight_decay = self.optimizer_init.get("init_args", {}).get("weight_decay", 0.0)
-        params = set(cast(nn.Module, self).parameters())
-        params_no_weight_decay = set(self._params_no_weight_decay())
-        params = params - params_no_weight_decay
-        optimizer = instantiate_class(
-            [
-                {"params": list(params), "weight_decay": weight_decay},
-                {"params": list(params_no_weight_decay), "weight_decay": 0.0},
-            ],
-            self.optimizer_init,
-        )
-        optimizer.param_groups = [g for g in optimizer.param_groups if g["params"]]
-        result["optimizer"] = optimizer
-
-        if self.lr_scheduler_init:
-            lr_scheduler: Dict[str, Any] = {}
-            scheduler = instantiate_class(optimizer, self.lr_scheduler_init)
-            lr_scheduler["scheduler"] = scheduler
-            lr_scheduler["monitor"] = self.lr_scheduler_monitor
-            lr_scheduler["interval"] = self.lr_scheduler_interval
-            result["lr_scheduler"] = lr_scheduler
-
-        return result
+    # Recurse into submodules
+    for submodule in module.children():
+        yield from match_parameters(submodule, param_names, keys)
 
 
 class StateMixin:
@@ -150,7 +127,7 @@ class StateMixin:
 T = TypeVar("T", bound="Task")
 
 
-class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], ABC):
+class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
     """
     Defines a task for training, validation, and testing with PyTorch Lightning.
 
@@ -186,7 +163,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
-        weight_decay_exemptions: Set[str] = set(),
+        parameter_groups: Dict[Tuple[str, ...], Dict[str, float]] = {},
     ):
         super(Task, self).__init__()
         self.optimizer_init = optimizer_init
@@ -198,7 +175,7 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
         self.strict_checkpoint = strict_checkpoint
         self.log_train_metrics_interval = log_train_metrics_interval
         self.log_train_metrics_on_epoch = log_train_metrics_on_epoch
-        self.weight_decay_exemptions = set(weight_decay_exemptions)
+        self.parameter_groups = parameter_groups
 
     @torch.jit.unused
     def _torchscript_unsafe_init(self, *args, **kwargs) -> None:
@@ -582,3 +559,36 @@ class Task(CustomOptimizerMixin, StateMixin, pl.LightningModule, Generic[I, O], 
                 cfg.model.checkpoint = src
 
         return cfg
+
+    def configure_optimizers(self) -> Dict[str, Any]:
+        if not self.optimizer_init:
+            raise ValueError("No optimizer specified")
+        result: Dict[str, Any] = {}
+
+        # Determine parameter groups
+        parameter_groups: List[Dict[str, Any]] = []
+        assigned_params: Set[nn.Parameter] = set()
+        for keys, params in self.parameter_groups.items():
+            unassigned_param_names = (name for name, param in self.named_parameters() if param not in assigned_params)
+            matched_params = list(p for p in match_parameters(self, unassigned_param_names, keys) if p.requires_grad)
+            if matched_params:
+                parameter_groups.append({"params": matched_params, **params})
+            assigned_params.update(matched_params)
+        parameter_groups.append(
+            {"params": [p for p in self.parameters() if p not in assigned_params and p.requires_grad]}
+        )
+
+        # Instantiate optimizer
+        optimizer = instantiate_class(parameter_groups, self.optimizer_init)
+        result["optimizer"] = optimizer
+
+        # Instantiate learning rate scheduler
+        if self.lr_scheduler_init:
+            lr_scheduler: Dict[str, Any] = {}
+            scheduler = instantiate_class(optimizer, self.lr_scheduler_init)
+            lr_scheduler["scheduler"] = scheduler
+            lr_scheduler["monitor"] = self.lr_scheduler_monitor
+            lr_scheduler["interval"] = self.lr_scheduler_interval
+            result["lr_scheduler"] = lr_scheduler
+
+        return result

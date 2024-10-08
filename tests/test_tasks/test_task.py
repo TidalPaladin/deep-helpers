@@ -39,14 +39,14 @@ class TestTask:
         assert result["lr_scheduler"]["interval"] == lr_scheduler_interval
 
     @pytest.mark.parametrize(
-        "weight_decay_exemptions,groups",
+        "parameter_groups,groups",
         [
-            (set(), 1),
-            ({"bias"}, 2),
-            ({"Conv2d"}, 2),
+            (dict(), 1),
+            ({("bias",): {"weight_decay": 0.0}}, 2),
+            ({("Conv2d",): {"lr": 1.0}}, 2),
         ],
     )
-    def test_weight_decay_filter(self, weight_decay_exemptions, groups):
+    def test_parameter_groups(self, parameter_groups, groups):
         optimizer_init = {"class_path": "torch.optim.AdamW", "init_args": {"lr": 0.001, "weight_decay": 0.1}}
         lr_scheduler_init = {
             "class_path": "torch.optim.lr_scheduler.StepLR",
@@ -60,7 +60,7 @@ class TestTask:
             lr_scheduler_init,
             lr_scheduler_interval,
             lr_scheduler_monitor,
-            weight_decay_exemptions=weight_decay_exemptions,
+            parameter_groups=parameter_groups,
         )
         result = task.configure_optimizers()
         assert isinstance(result["optimizer"], AdamW)
@@ -68,6 +68,12 @@ class TestTask:
         exp_params = sum(1 for _ in task.parameters())
         actual_params = sum(1 for pg in result["optimizer"].param_groups for p in pg["params"])
         assert exp_params == actual_params
+
+        # The first parameter group should be the custom one
+        custom_group = result["optimizer"].param_groups[0]
+        for config in parameter_groups.values():
+            for k, v in config.items():
+                assert custom_group[k] == v
 
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test"])
