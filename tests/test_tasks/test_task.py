@@ -44,6 +44,7 @@ class TestTask:
             (dict(), 1),
             ({("bias",): {"weight_decay": 0.0}}, 2),
             ({("Conv2d",): {"lr": 1.0}}, 2),
+            ({("conv1",): {"lr": 1.0}}, 2),
         ],
     )
     def test_parameter_groups(self, parameter_groups, groups):
