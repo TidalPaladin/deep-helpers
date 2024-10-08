@@ -62,11 +62,12 @@ def match_parameters(
     module: nn.Module,
     param_names: Iterator[str],
     keys: Tuple[str, ...],
+    prefix: str = "",
 ) -> Iterator[nn.Parameter]:
     # Check direct parameters of the current module
     yield from (
         param
-        for param_name, param in module.named_parameters(recurse=False)
+        for param_name, param in module.named_parameters(recurse=False, prefix=prefix)
         if (
             # Module class name matches a key exactly
             module.__class__.__name__ in keys
@@ -76,8 +77,8 @@ def match_parameters(
     )
 
     # Recurse into submodules
-    for submodule in module.children():
-        yield from match_parameters(submodule, param_names, keys)
+    for name, submodule in module.named_children():
+        yield from match_parameters(submodule, param_names, keys, prefix=f"{prefix}.{name}")
 
 
 class StateMixin:
@@ -141,8 +142,9 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         strict_checkpoint: Flag indicating whether to strictly enforce matching for checkpoint loading.
         log_train_metrics_interval: Interval for logging training metrics.
         log_train_metrics_on_epoch: Flag indicating whether to log training metrics on epoch end.
-        weight_decay_exemptions: Set of parameter names exempt from weight decay. Matches against class names
-            or partial parameter names. E.g. "conv" will match "backbone.conv1.weight" and "backbone.conv2.weight".
+        parameter_groups: Custom parameter groups for the optimizer. Keys should be tuples of patterns to match.
+            Values should be a dictionary of keyword arguments to pass to the optimizer. Keys can be parts of parameter
+            names or module class names. E.g. 'conv1' or 'LayerNorm'.
     """
 
     # TODO: For now we will retain support for CHECKPOINT_ENV_VAR. However jsonargparse provides a CLI mechanism for

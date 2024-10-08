@@ -108,10 +108,9 @@ class CustomTask(Task):
             log_train_metrics_on_epoch,
             parameter_groups,
         )
-        self.backbone = nn.Sequential(
-            nn.Conv2d(3, 16, 3),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        )
+        self.backbone = nn.Sequential()
+        self.backbone.add_module("conv1", nn.Conv2d(3, 16, 3))
+        self.backbone.add_module("pool1", nn.AdaptiveAvgPool2d((1, 1)))
         self.head = nn.Linear(16, 10)
         self.save_hyperparameters()
 
