@@ -142,9 +142,9 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         strict_checkpoint: Flag indicating whether to strictly enforce matching for checkpoint loading.
         log_train_metrics_interval: Interval for logging training metrics.
         log_train_metrics_on_epoch: Flag indicating whether to log training metrics on epoch end.
-        parameter_groups: Custom parameter groups for the optimizer. Keys should be tuples of patterns to match.
-            Values should be a dictionary of keyword arguments to pass to the optimizer. Keys can be parts of parameter
-            names or module class names. E.g. 'conv1' or 'LayerNorm'.
+        parameter_groups: Custom parameter groups for the optimizer. Each list element is a dict with a 'params' key
+            whose value is a sequence of parameter names or module class names to match. All other keys are passed
+            to the optimizer constructor as keyword arguments.
     """
 
     # TODO: For now we will retain support for CHECKPOINT_ENV_VAR. However jsonargparse provides a CLI mechanism for
@@ -165,7 +165,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
-        parameter_groups: Dict[Tuple[str, ...], Dict[str, float]] = {},
+        parameter_groups: List[Dict[str, Any]] = [],
     ):
         super(Task, self).__init__()
         self.optimizer_init = optimizer_init
@@ -570,12 +570,15 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         # Determine parameter groups
         parameter_groups: List[Dict[str, Any]] = []
         assigned_params: Set[nn.Parameter] = set()
-        for keys, params in self.parameter_groups.items():
+        for config in self.parameter_groups:
+            keys = config["params"]
             unassigned_param_names = (name for name, param in self.named_parameters() if param not in assigned_params)
             matched_params = list(p for p in match_parameters(self, unassigned_param_names, keys) if p.requires_grad)
             if matched_params:
-                parameter_groups.append({"params": matched_params, **params})
+                kwargs = {k: v for k, v in config.items() if k != "params"}
+                parameter_groups.append({"params": matched_params, **kwargs})
             assigned_params.update(matched_params)
+        # Default param group
         parameter_groups.append(
             {"params": [p for p in self.parameters() if p not in assigned_params and p.requires_grad]}
         )
