@@ -3,7 +3,7 @@
 
 from copy import copy, deepcopy
 from functools import partial
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pytest
 import pytorch_lightning as pl
@@ -94,7 +94,7 @@ class CustomTask(Task):
         strict_checkpoint: bool = True,
         log_train_metrics_interval: int = 1,
         log_train_metrics_on_epoch: bool = False,
-        parameter_groups: Dict[Tuple[str, ...], Dict[str, float]] = {},
+        parameter_groups: List[Dict[str, Any]] = [],
     ):
         super().__init__(
             optimizer_init,
