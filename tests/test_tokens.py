@@ -98,6 +98,7 @@ class TestCreateMask:
         pooled = F.adaptive_avg_pool2d(mask_grid.float(), target_size).view(*target_size)
         assert ((pooled == 1.0) | (pooled == 0.0)).all()
 
+    @pytest.mark.cuda
     def test_create_device(self):
         size = (16, 16)
         ratio = 0.25
