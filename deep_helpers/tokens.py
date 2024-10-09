@@ -7,7 +7,6 @@ import torch.nn.functional as F
 from torch import Tensor
 
 
-@torch.compile(fullgraph=True)
 def mask_is_ragged(mask: Tensor) -> bool:
     r"""Checks if the mask is ragged.
 
@@ -23,7 +22,6 @@ def mask_is_ragged(mask: Tensor) -> bool:
     return cast(bool, (counts != counts[0]).any())
 
 
-@torch.compile(fullgraph=True)
 def _apply_with_fill(mask: Tensor, x: Tensor, fill_value: float | Tensor) -> Tensor:
     N, L, _ = x.shape
     fill_value = fill_value.type_as(x) if isinstance(fill_value, Tensor) else fill_value
@@ -31,15 +29,11 @@ def _apply_with_fill(mask: Tensor, x: Tensor, fill_value: float | Tensor) -> Ten
     return torch.where(mask, x, fill_value)
 
 
-@torch.compile
-@torch._dynamo.config.patch(capture_dynamic_output_shape_ops=True)  # type: ignore
 def _apply_non_ragged(mask: Tensor, x: Tensor) -> Tensor:
     N, _, D = x.shape
     return x[mask].view(N, -1, D)
 
 
-@torch.compile
-@torch._dynamo.config.patch(capture_scalar_outputs=True)  # type: ignore
 def _apply_ragged(mask: Tensor, x: Tensor, padding_value: float | Tensor) -> Tensor:
     N, _, D = x.shape
 
