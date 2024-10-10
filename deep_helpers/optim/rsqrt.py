@@ -29,7 +29,7 @@ def get_lr(
         Learning rate at the given step.
     """
 
-    # Warmup is linear from 0 to base_lr over warmup_steps
+    # Warmup is linear from initial_lr to base_lr over warmup_steps
     if step <= warmup_steps:
         assert initial_lr <= base_lr
         return initial_lr + (base_lr - initial_lr) * step / warmup_steps
@@ -46,6 +46,55 @@ def get_lr(
     return lr
 
 
+def get_momentum(
+    step: int,
+    base_momentum: float,
+    warmup_steps: int,
+    cooldown_steps: int,
+    total_steps: int,
+    timescale: int,
+    initial_momentum: float,
+) -> float:
+    """
+    Calculate the momentum at a given step using a warmup, reciprocal square root, and cooldown schedule.
+
+    It is assumed that momentum is cycled inversely to the learning rate, i.e. ``base_momentum <= initial_momentum``.
+    Momentum warms up from ``initial_momentum`` to ``base_momentum`` over ``warmup_steps``.
+    Then it follows a reciprocal square root schedule until the cooldown phase,
+    where it linearly increases from the current momentum back to ``initial_momentum`` over ``cooldown_steps``.
+
+    Args:
+        step: Current step in the training process.
+        base_momentum: Base momentum.
+        warmup_steps: Number of steps for the warmup phase.
+        cooldown_steps: Number of steps for the cooldown phase.
+        total_steps: Total number of steps in the training process.
+        timescale: Timescale parameter for the reciprocal square root schedule.
+        initial_momentum: Initial momentum.
+
+    Returns:
+        Learning rate at the given step.
+    """
+
+    # Warmup is linear from initial_momentum to base_momentum over warmup_steps
+    if step <= warmup_steps:
+        assert initial_momentum >= base_momentum
+        return initial_momentum - (initial_momentum - base_momentum) * step / warmup_steps
+
+    # Find point along the reciprocal square root schedule
+    rsqrt_step = min(step, total_steps - cooldown_steps)
+    rsqrt = (timescale / (rsqrt_step - (warmup_steps - timescale))) ** 0.5
+    momentum = initial_momentum - (initial_momentum - base_momentum) * rsqrt
+
+    # Cooldown is linear from current momentum to initial_momentum over cooldown_steps
+    if step >= total_steps - cooldown_steps:
+        scale = 1 + (step - total_steps) / cooldown_steps
+        return momentum + (initial_momentum - momentum) * scale
+
+    # Otherwise we are not yet in cooldown, so we use the reciprocal square root schedule
+    return momentum
+
+
 class ReciprocalSquareRootLR(LRScheduler):
     """
     Implements a learning rate scheduler with a warmup, reciprocal square root, and cooldown schedule.
@@ -55,6 +104,11 @@ class ReciprocalSquareRootLR(LRScheduler):
     2. Reciprocal Square Root: Adjusts the learning rate according to a reciprocal square root schedule.
     3. Cooldown: Linearly decreases the learning rate from the current learning rate to 0 over a specified number of steps.
 
+    If ``initial_momentum`` is specified, the momentum is cycled inversely to the learning rate.
+    The momentum linearly warms up from ``initial_momentum`` to the momentum value set in the optimizer,
+    then it follows a reciprocal square root schedule asymptotically towards ``base_momentum``. The cooldown
+    phase linearly decreases the momentum from the current momentum to ``initial_momentum`` over the same number of steps.
+
     Args:
         optimizer: Wrapped optimizer.
         warmup_steps: Number of steps for the warmup phase.
@@ -62,6 +116,7 @@ class ReciprocalSquareRootLR(LRScheduler):
         total_steps: Total number of steps in the training process.
         timescale: Timescale parameter for the reciprocal square root schedule.
         initial_lr: Initial learning rate.
+        initial_momentum: Initial momentum, or None to not change momentum.
         last_epoch: The index of the last epoch. Default: -1.
     """
 
@@ -73,6 +128,7 @@ class ReciprocalSquareRootLR(LRScheduler):
         total_steps: int,
         timescale: int,
         initial_lr: float = 0.0,
+        initial_momentum: float | None = None,
         last_epoch: int = -1,
     ):
         self.warmup_steps = warmup_steps
@@ -80,11 +136,43 @@ class ReciprocalSquareRootLR(LRScheduler):
         self.total_steps = total_steps
         self.timescale = timescale
         self.initial_lr = initial_lr
+        self.initial_momentum = initial_momentum
         super().__init__(optimizer, last_epoch)
         self._step_count = 0
 
     def get_lr(self) -> List[float]:
         step = self._step_count
+
+        # Perform an update of momentum
+        if self.initial_momentum is not None:
+            for param_group in self.optimizer.param_groups:
+                if "momentum" in param_group:
+                    momentum = param_group["momentum"]
+                    base_momentum = param_group.setdefault("base_momentum", momentum)
+                    new_momentum = get_momentum(
+                        step,
+                        base_momentum,
+                        self.warmup_steps,
+                        self.cooldown_steps,
+                        self.total_steps,
+                        self.timescale,
+                        self.initial_momentum,
+                    )
+                    param_group["momentum"] = new_momentum
+                elif "betas" in param_group:
+                    momentum, _ = param_group["betas"]
+                    base_momentum = param_group.setdefault("base_momentum", momentum)
+                    new_momentum = get_momentum(
+                        step,
+                        base_momentum,
+                        self.warmup_steps,
+                        self.cooldown_steps,
+                        self.total_steps,
+                        self.timescale,
+                        self.initial_momentum,
+                    )
+                    param_group["betas"] = (new_momentum, param_group["betas"][1])
+
         return [
             get_lr(
                 step,
