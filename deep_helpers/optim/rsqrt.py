@@ -5,7 +5,13 @@ from torch.optim.optimizer import Optimizer
 
 
 def get_lr(
-    step: int, base_lr: float, warmup_steps: int, cooldown_steps: int, total_steps: int, timescale: int
+    step: int,
+    base_lr: float,
+    warmup_steps: int,
+    cooldown_steps: int,
+    total_steps: int,
+    timescale: int,
+    initial_lr: float,
 ) -> float:
     """
     Calculate the learning rate at a given step using a warmup, reciprocal square root, and cooldown schedule.
@@ -17,6 +23,7 @@ def get_lr(
         cooldown_steps: Number of steps for the cooldown phase.
         total_steps: Total number of steps in the training process.
         timescale: Timescale parameter for the reciprocal square root schedule.
+        initial_lr: Initial learning rate.
 
     Returns:
         Learning rate at the given step.
@@ -24,7 +31,8 @@ def get_lr(
 
     # Warmup is linear from 0 to base_lr over warmup_steps
     if step <= warmup_steps:
-        return base_lr * step / warmup_steps
+        assert initial_lr <= base_lr
+        return initial_lr + (base_lr - initial_lr) * step / warmup_steps
 
     # Find point along the reciprocal square root schedule
     rsqrt_step = min(step, total_steps - cooldown_steps)
@@ -43,7 +51,7 @@ class ReciprocalSquareRootLR(LRScheduler):
     Implements a learning rate scheduler with a warmup, reciprocal square root, and cooldown schedule.
 
     This scheduler adjusts the learning rate according to the following phases:
-    1. Warmup: Linearly increases the learning rate from 0 to the base learning rate over a specified number of steps.
+    1. Warmup: Linearly increases the learning rate from ``initial_lr`` to the base learning rate over a specified number of steps.
     2. Reciprocal Square Root: Adjusts the learning rate according to a reciprocal square root schedule.
     3. Cooldown: Linearly decreases the learning rate from the current learning rate to 0 over a specified number of steps.
 
@@ -53,6 +61,7 @@ class ReciprocalSquareRootLR(LRScheduler):
         cooldown_steps: Number of steps for the cooldown phase.
         total_steps: Total number of steps in the training process.
         timescale: Timescale parameter for the reciprocal square root schedule.
+        initial_lr: Initial learning rate.
         last_epoch: The index of the last epoch. Default: -1.
     """
 
@@ -63,19 +72,29 @@ class ReciprocalSquareRootLR(LRScheduler):
         cooldown_steps: int,
         total_steps: int,
         timescale: int,
+        initial_lr: float = 0.0,
         last_epoch: int = -1,
     ):
         self.warmup_steps = warmup_steps
         self.cooldown_steps = cooldown_steps
         self.total_steps = total_steps
         self.timescale = timescale
+        self.initial_lr = initial_lr
         super().__init__(optimizer, last_epoch)
         self._step_count = 0
 
     def get_lr(self) -> List[float]:
         step = self._step_count
         return [
-            get_lr(step, base_lr, self.warmup_steps, self.cooldown_steps, self.total_steps, self.timescale)
+            get_lr(
+                step,
+                base_lr,
+                self.warmup_steps,
+                self.cooldown_steps,
+                self.total_steps,
+                self.timescale,
+                self.initial_lr,
+            )
             for base_lr in self.base_lrs
         ]
 
