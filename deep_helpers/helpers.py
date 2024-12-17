@@ -14,6 +14,11 @@ from torch import Tensor
 MAX_HASH: Final = torch.iinfo(torch.long).max
 
 
+def count_parameters(model: nn.Module) -> int:
+    r"""Counts the number of parameters in a model."""
+    return sum(p.numel() for p in model.parameters())
+
+
 def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool = True) -> nn.Module:
     """Load weights from a state dict. When loading with ``strict=False``, missing or unexpected
     keys will be ignored and keys with shapes that do not match will be ignored. The rank zero
@@ -51,8 +56,11 @@ def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool =
             unloaded_layers = {k.replace(prefix, "") for k in unloaded_layers if k.startswith(prefix)}
             intersection = module_params.intersection(unloaded_layers)
 
+            # If x has no parameters, then it is fully loaded
+            if not count_parameters(x):
+                return set()
             # If all children of x are unloaded, then x is fully unloaded
-            if len(intersection) == len(module_params):
+            elif len(intersection) == len(module_params):
                 return {prefix[:-1]}
             # If no children of x are unloaded, then x is fully loaded
             elif not intersection:
