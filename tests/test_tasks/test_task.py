@@ -203,6 +203,14 @@ class TestTask:
         assert isinstance(call.args[-1], dict)
         assert call.kwargs["strict"] == strict
 
+    @pytest.mark.parametrize("strict", [False, True])
+    def test_checkpoint_callback(self, mocker, task, strict):
+        checkpoint_path = checkpoint_factory(task, filename="model.safetensors")
+        task = task.__class__(checkpoint=checkpoint_path, strict_checkpoint=strict)
+        m = mocker.spy(task, "on_task_checkpoint_loaded")
+        task.setup()
+        m.assert_called()
+
     def test_log_val_metrics_on_epoch(self, mocker, task, default_root_dir, datamodule):
         metric = tm.Accuracy(task="multiclass", num_classes=10)
         update = mocker.spy(metric, "update")
