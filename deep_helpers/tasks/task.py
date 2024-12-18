@@ -295,7 +295,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         if self.checkpoint is not None:
             self._safe_load_checkpoint()
 
-    def _safe_load_checkpoint(self) -> None:
+    def _safe_load_checkpoint(self) -> Dict[str, Any]:
         assert self.checkpoint is not None
         checkpoint_path = Path(self.checkpoint)
         if not checkpoint_path.is_file():
@@ -307,6 +307,11 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         else:
             state_dict = torch.load(checkpoint_path, map_location="cpu", weights_only=False)["state_dict"]
         load_checkpoint(self, state_dict, strict=self.strict_checkpoint)
+        self.on_task_checkpoint_loaded(checkpoint_path, state_dict)
+        return state_dict
+
+    def on_task_checkpoint_loaded(self, path, state_dict: Dict[str, Any]) -> None:
+        r"""Called when a checkpoint is loaded as part of :func:`setup`"""
 
     def compute_total_loss(self, output: O) -> Tensor:
         loss = cast(Tensor, sum(v for k, v in output["log"].items() if k.startswith("loss_")))
