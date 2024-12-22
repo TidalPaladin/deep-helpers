@@ -60,7 +60,6 @@ O = TypeVar("O", bound=Union[Dict[str, Any], Output])
 
 def match_parameters(
     module: nn.Module,
-    param_names: Iterator[str],
     keys: Tuple[str, ...],
     prefix: str = "",
 ) -> Iterator[nn.Parameter]:
@@ -78,7 +77,7 @@ def match_parameters(
 
     # Recurse into submodules
     for name, submodule in module.named_children():
-        yield from match_parameters(submodule, param_names, keys, prefix=f"{prefix}.{name}")
+        yield from match_parameters(submodule, keys, prefix=f"{prefix}.{name}")
 
 
 class StateMixin:
@@ -577,12 +576,13 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         assigned_params: Set[nn.Parameter] = set()
         for config in self.parameter_groups:
             keys = config["params"]
-            unassigned_param_names = (name for name, param in self.named_parameters() if param not in assigned_params)
-            matched_params = list(p for p in match_parameters(self, unassigned_param_names, keys) if p.requires_grad)
-            if matched_params:
+            params = set(p for p in match_parameters(self, keys) if p.requires_grad)
+            params = params.difference(assigned_params)
+            if params:
+                assert params.isdisjoint(assigned_params)
                 kwargs = {k: v for k, v in config.items() if k != "params"}
-                parameter_groups.append({"params": matched_params, **kwargs})
-            assigned_params.update(matched_params)
+                parameter_groups.append({"params": list(params), **kwargs})
+            assigned_params.update(params)
         # Default param group
         parameter_groups.append(
             {"params": [p for p in self.parameters() if p not in assigned_params and p.requires_grad]}

@@ -45,6 +45,13 @@ class TestTask:
             ([{"params": ("bias",), "weight_decay": 0.0}], 2),
             ([{"params": ("Conv2d",), "lr": 1.0}], 2),
             ([{"params": ("conv1",), "lr": 1.0}], 2),
+            (
+                [
+                    {"params": ("Conv2d",), "lr": 1.0},
+                    {"params": ("bias",), "lr": 0.1},
+                ],
+                3,
+            ),
         ],
     )
     def test_parameter_groups(self, parameter_groups, groups):
@@ -70,11 +77,11 @@ class TestTask:
         actual_params = sum(1 for pg in result["optimizer"].param_groups for p in pg["params"])
         assert exp_params == actual_params
 
-        # The first parameter group should be the custom one
-        custom_group = result["optimizer"].param_groups[0]
-        for config in parameter_groups:
+        # The last parameter group should be the default one
+        custom_groups = result["optimizer"].param_groups[:-1]
+        for i, config in enumerate(parameter_groups):
             for k, v in config.items():
-                assert k == "params" or custom_group[k] == v
+                assert k == "params" or custom_groups[i][k] == v
 
     @pytest.mark.parametrize("named_datasets", [False, True])
     @pytest.mark.parametrize("stage", ["fit", "test"])
