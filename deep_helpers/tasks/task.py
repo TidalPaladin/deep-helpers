@@ -219,7 +219,6 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         # This will clear the metric state that may have been updated over `log_train_metrics_interval` batches.
         is_last_batch_in_accumulation = (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0
         if self.training and metrics and is_logging_global_step and is_last_batch_in_accumulation:
-            print("COMPUTE")
             self._log_train_metrics(state, metrics, add_dataloader_idx=add_dataloader_idx)
 
     def _log_inference_metrics(
