@@ -209,30 +209,17 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         self,
         state: State,
         output: O,
+        batch_idx: int,
         metrics: Optional[tm.MetricCollection] = None,
         add_dataloader_idx: bool = False,
     ) -> None:
-        # Manually log loss, PyTorch Lightning 1.9 doesn't do this for us anymore
-        self.attached_task.log(
-            "loss", cast(Dict[str, Any], output)["loss"], on_step=True, on_epoch=False, prog_bar=True
-        )
-
-        # Log things placed into `output` under the key `log` unless they are metrics.
-        # Metrics require special handling and will be logged separately.
-        scalars_to_log = {
-            f"{state.with_postfix(k)}": v for k, v in output.get("log", {}).items() if not isinstance(v, tm.Metric)
-        }
-        self.attached_task.log_dict(
-            scalars_to_log,
-            on_step=self.attached_task.trainer.training,
-            on_epoch=not self.attached_task.trainer.training,
-            prog_bar=False,
-            sync_dist=not self.attached_task.trainer.training,
-            add_dataloader_idx=add_dataloader_idx,
-        )
-
-        # Log metrics
-        if self.training and metrics and self.global_step % self.attached_task.log_train_metrics_interval == 0:
+        is_logging_global_step = (self.global_step + 1) % self.attached_task.log_train_metrics_interval == 0
+        # NOTE: When using accumulate_grad_batches, global step only increments every `accumulate_grad_batches` steps.
+        # If this is not accounted for, we will compute log and reset a metric `accumulate_grad_batches` times per global step.
+        # This will clear the metric state that may have been updated over `log_train_metrics_interval` batches.
+        is_last_batch_in_accumulation = (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0
+        if self.training and metrics and is_logging_global_step and is_last_batch_in_accumulation:
+            print("COMPUTE")
             self._log_train_metrics(state, metrics, add_dataloader_idx=add_dataloader_idx)
 
     def _log_inference_metrics(
@@ -322,8 +309,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         output = self.step(batch, batch_idx, self.state, metrics)
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
-        output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, output, metrics)
+        self.run_logging_loop(self.state, output, batch_idx, metrics)
         return output
 
     def validation_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
@@ -338,8 +324,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
 
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
-        output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, output, metrics)
+        self.run_logging_loop(self.state, output, batch_idx, metrics)
         return output
 
     def test_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
@@ -353,8 +338,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
 
         _ = self.compute_total_loss(output)
         output["loss"] = self.compute_total_loss(output)
-        output["log"]["loss"] = output["loss"]
-        self.run_logging_loop(self.state, output, metrics)
+        self.run_logging_loop(self.state, output, batch_idx, metrics)
         return output
 
     def on_fit_start(self):
@@ -453,7 +437,7 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         return cast(T, model)
 
     @classmethod
-    def create(cls, checkpoint_path: Optional[Path] = None, **kwargs):
+    def create(cls: Type[T], checkpoint_path: Optional[Path] = None, **kwargs) -> T:
         result = cls.load_from_checkpoint(checkpoint_path, **kwargs)
         result.eval()
         logging.info(f"Loaded {cls.__name__} checkpoint from {checkpoint_path}")

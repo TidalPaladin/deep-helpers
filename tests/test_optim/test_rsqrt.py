@@ -134,3 +134,28 @@ class TestReciprocalSquareRootLR:
         assert schedule2.get_lr() == schedule.get_lr()
         assert schedule2.total_steps == total_steps * 2
         assert schedule2.optimizer.param_groups[0]["betas"] == schedule.optimizer.param_groups[0]["betas"]
+
+    @pytest.mark.parametrize(
+        "step, exp",
+        [
+            (0, [1e-4, 1e-4]),
+            (100, [0.1, 0.01]),
+            (1000, [0.0, 0.0]),
+        ],
+    )
+    def test_get_lr_multiple_lrs(self, step, exp):
+        base_lr = 0.01
+        custom_lr = 0.1
+        group1 = {"params": [nn.Parameter(torch.zeros(1))], "lr": custom_lr}
+        group2 = {"params": [nn.Parameter(torch.zeros(1))], "lr": base_lr}
+        optim = Adam([group1, group2], lr=base_lr)
+
+        warmup_steps = 100
+        cooldown_steps = 10
+        total_steps = 1000
+        timescale = 10
+        initial_lr = 1e-4
+        schedule = ReciprocalSquareRootLR(optim, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr)
+        schedule._step_count = step
+        actual = schedule.get_lr()
+        assert actual == exp
