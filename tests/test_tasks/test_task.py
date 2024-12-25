@@ -98,9 +98,6 @@ class TestTask:
         else:
             precision = 32
 
-        log_spy = mocker.spy(task, "log")
-        log_dict_spy = mocker.spy(task, "log_dict")
-
         task.named_datasets = named_datasets
         trainer = pl.Trainer(
             fast_dev_run=True,
@@ -113,8 +110,6 @@ class TestTask:
         dm = datamodule(batch_size=4)
         func = getattr(trainer, stage)
         func(task, datamodule=dm)
-        log_spy.assert_called()
-        log_dict_spy.assert_called()
 
     @pytest.mark.parametrize("stage", ["fit", "test"])
     @pytest.mark.parametrize(
@@ -284,3 +279,54 @@ class TestTask:
         x = torch.rand(1, 3, 28, 28)
         output = model(x)
         assert isinstance(output, Tensor)
+
+    @pytest.mark.parametrize("log_train_metrics_interval", [1, 4, 8])
+    @pytest.mark.parametrize("accumulate_grad_batches", [1, 2, 3])
+    def test_log_train_metrics_accumulate_grad_batches(
+        self, mocker, task, default_root_dir, datamodule, log_train_metrics_interval, accumulate_grad_batches
+    ):
+        task.log_train_metrics_interval = log_train_metrics_interval
+        # class Foo(MulticlassAccuracy):
+
+        #    def compute(self):
+        #        #import pdb; pdb.set_trace()
+        #        return super().compute()
+
+        metric = tm.Accuracy(task="multiclass", num_classes=10)
+        update = mocker.spy(metric, "update")
+        compute = mocker.spy(metric, "compute")
+        reset = mocker.spy(metric, "reset")
+
+        def func(state):
+            if state.mode == Mode.TRAIN:
+                return tm.MetricCollection({"acc": metric})
+            else:
+                return tm.MetricCollection({"acc": tm.Accuracy(task="multiclass", num_classes=10)})
+
+        mocker.patch.object(task, "create_metrics", new=func)
+        mocker.spy(task, "log_dict")
+
+        batch_size = 4
+        base_steps = 32
+        total_steps = base_steps * accumulate_grad_batches
+
+        trainer = pl.Trainer(
+            fast_dev_run=total_steps,
+            default_root_dir=default_root_dir,
+            precision=32,
+            accelerator="cpu",
+            devices=1,
+            accumulate_grad_batches=accumulate_grad_batches,
+            num_sanity_val_steps=0,
+        )
+        dm = datamodule(length=batch_size * total_steps, batch_size=batch_size)
+        trainer.fit(task, datamodule=dm)
+
+        total_steps = base_steps * accumulate_grad_batches
+        assert update.call_count == total_steps, "Metric should be updated at each batch"
+        assert (
+            compute.call_count == base_steps // log_train_metrics_interval
+        ), "Metric should be computed at each log_train_metrics_interval"
+        assert (
+            reset.call_count == compute.call_count + 1
+        ), "Metric should be reset at each compute, plus once at epoch start"

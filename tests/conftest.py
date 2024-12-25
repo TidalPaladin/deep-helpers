@@ -137,7 +137,7 @@ class CustomTask(Task):
         output["log"]["loss_ce"] = loss
 
         if metrics is not None:
-            metrics["acc"](y_hat, y)
+            metrics["acc"].update(y_hat, y)
 
         return output
 
@@ -167,9 +167,9 @@ class DummyDataset(Dataset):
 
 
 class DummyDM(pl.LightningDataModule, SupportsDatasetNames):
-    def __init__(self, batch_size: int = 1, example=None):
+    def __init__(self, length: int = 10, batch_size: int = 1, example=None):
         super().__init__()
-        self.ds = DummyDataset(length=10, example=example)
+        self.ds = DummyDataset(length=length, example=example)
         self.batch_size = batch_size
 
     @property
