@@ -31,6 +31,10 @@ TEST_CASES: Final = [
     (0, 1.1, 10, 10, 100, 10, 0.1, 0.1),
     (5, 1.1, 10, 10, 100, 10, 0.1, 0.6),
     (10, 1.1, 10, 10, 100, 10, 0.1, 1.1),
+    # Very small timescale, asymptote to 0.0
+    (19000, 1.1, 10, 10, 20000, 1, 0.1, 0.0080),
+    # Error handling
+    pytest.param(101, 1.1, 10, 10, 100, 10, 0.1, 1.1, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
 ]
 
 TEXT_ARGS_MOMENTUM: Final = (
@@ -53,6 +57,11 @@ TEST_CASES_MOMENTUM: Final = [
     (90, 0.85, 10, 10, 100, 10, 0.95, 0.9167),
     (95, 0.85, 10, 10, 100, 10, 0.95, 0.9333),
     (100, 0.85, 10, 10, 100, 10, 0.95, 0.95),
+    # Very small timescale, asymptote to initial_momentum
+    (19000, 0.85, 10, 10, 20000, 1, 0.95, 0.9493),
+    (19000, 0.95, 10, 10, 20000, 1, 1.0, 0.9996),
+    # Error handling
+    pytest.param(101, 0.85, 10, 10, 100, 10, 0.95, 0.95, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
 ]
 
 
