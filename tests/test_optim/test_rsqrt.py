@@ -109,6 +109,19 @@ class TestReciprocalSquareRootLR:
         initial_momentum,
         expected,
     ):
+        # Update optimizer to account for change in base momentum
+        if base_momentum != 0.85:
+            if isinstance(optimizer, Adam):
+                optimizer.defaults["betas"] = (base_momentum, 0.999)
+                for param_group in optimizer.param_groups:
+                    param_group["betas"] = (base_momentum, 0.999)
+                    param_group["base_momentum"] = base_momentum
+            else:
+                optimizer.defaults["momentum"] = base_momentum
+                for param_group in optimizer.param_groups:
+                    param_group["momentum"] = base_momentum
+                    param_group["base_momentum"] = base_momentum
+
         schedule = ReciprocalSquareRootLR(
             optimizer, warmup_steps, cooldown_steps, total_steps, timescale, 0, initial_momentum
         )
