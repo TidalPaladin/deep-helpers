@@ -28,6 +28,8 @@ def get_lr(
     Returns:
         Learning rate at the given step.
     """
+    if step > total_steps:
+        raise ValueError(f"Step {step} is greater than total steps {total_steps}")
 
     # Warmup is linear from initial_lr to base_lr over warmup_steps
     if step <= warmup_steps:
@@ -75,6 +77,8 @@ def get_momentum(
     Returns:
         Learning rate at the given step.
     """
+    if step > total_steps:
+        raise ValueError(f"Step {step} is greater than total steps {total_steps}")
 
     # Warmup is linear from initial_momentum to base_momentum over warmup_steps
     if step <= warmup_steps:
