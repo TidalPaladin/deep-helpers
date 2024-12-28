@@ -231,7 +231,11 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         metrics_to_log = (
             cast(
                 Dict[str, Tensor],
-                {f"{state.with_postfix(k)}": cast(tm.Metric, v).compute() for k, v in metrics.items()},
+                {
+                    f"{state.with_postfix(k)}": cast(tm.Metric, v).compute()
+                    for k, v in metrics.items()
+                    if cast(tm.Metric, v).update_called
+                },
             )
             if metrics
             else None
@@ -257,7 +261,11 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         metrics_to_log = (
             cast(
                 Dict[str, Tensor],
-                {f"{state.with_postfix(k)}": cast(tm.Metric, v).compute() for k, v in metrics.items()},
+                {
+                    f"{state.with_postfix(k)}": cast(tm.Metric, v).compute()
+                    for k, v in metrics.items()
+                    if cast(tm.Metric, v).update_called
+                },
             )
             if metrics
             else None
