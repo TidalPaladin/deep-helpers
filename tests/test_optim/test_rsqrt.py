@@ -10,81 +10,99 @@ from torch.optim.sgd import SGD
 from deep_helpers.optim.rsqrt import ReciprocalSquareRootLR, get_lr, get_momentum
 
 
-TEXT_ARGS: Final = "step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, expected"
+TEXT_ARGS: Final = (
+    "step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, peak_steps, expected"
+)
 TEST_CASES: Final = [
     # Start at lr=0.0
-    (0, 1.0, 10, 10, 100, 10, 0.0, 0.0),
+    (0, 1.0, 10, 10, 100, 10, 0.0, 0, 0.0),
     # Linear increase to base_lr over warmup_steps
-    (5, 1.0, 10, 10, 100, 10, 0.0, 0.5),
-    (10, 1.0, 10, 10, 100, 10, 0.0, 1.0),
+    (5, 1.0, 10, 10, 100, 10, 0.0, 0, 0.5),
+    (10, 1.0, 10, 10, 100, 10, 0.0, 0, 1.0),
+    # Stay at max lr for nonzero peak_steps
+    (10, 1.0, 10, 10, 100, 10, 0.0, 20, 1.0),
+    (15, 1.0, 10, 10, 100, 10, 0.0, 20, 1.0),
+    (30, 1.0, 10, 10, 100, 10, 0.0, 20, 1.0),
+    (31, 1.0, 10, 10, 100, 10, 0.0, 20, 0.9535),
     # Reciprocal square root schedule
-    (11, 1.0, 10, 10, 100, 10, 0.0, 0.9535),
-    (15, 1.0, 10, 10, 100, 10, 0.0, 0.8165),
-    (50, 1.0, 10, 10, 100, 10, 0.0, 0.4472),
-    (75, 1.0, 10, 10, 100, 10, 0.0, 0.3651),
-    (89, 1.0, 10, 10, 100, 10, 0.0, 0.3352),
+    (11, 1.0, 10, 10, 100, 10, 0.0, 0, 0.9535),
+    (15, 1.0, 10, 10, 100, 10, 0.0, 0, 0.8165),
+    (50, 1.0, 10, 10, 100, 10, 0.0, 0, 0.4472),
+    (75, 1.0, 10, 10, 100, 10, 0.0, 0, 0.3651),
+    (89, 1.0, 10, 10, 100, 10, 0.0, 0, 0.3352),
     # Linear decrease to lr=0.0 over cooldown_steps
-    (90, 1.0, 10, 10, 100, 10, 0.0, 0.3333),
-    (95, 1.0, 10, 10, 100, 10, 0.0, 0.1667),
-    (100, 1.0, 10, 10, 100, 10, 0.0, 0.0),
+    (90, 1.0, 10, 10, 100, 10, 0.0, 0, 0.3333),
+    (95, 1.0, 10, 10, 100, 10, 0.0, 0, 0.1667),
+    (100, 1.0, 10, 10, 100, 10, 0.0, 0, 0.0),
     # Warmup over nonzero initial_lr
-    (0, 1.1, 10, 10, 100, 10, 0.1, 0.1),
-    (5, 1.1, 10, 10, 100, 10, 0.1, 0.6),
-    (10, 1.1, 10, 10, 100, 10, 0.1, 1.1),
+    (0, 1.1, 10, 10, 100, 10, 0.1, 0, 0.1),
+    (5, 1.1, 10, 10, 100, 10, 0.1, 0, 0.6),
+    (10, 1.1, 10, 10, 100, 10, 0.1, 0, 1.1),
     # Very small timescale, asymptote to 0.0
-    (19000, 1.1, 10, 10, 20000, 1, 0.1, 0.0080),
+    (19000, 1.1, 10, 10, 20000, 1, 0.1, 0, 0.0080),
     # Error handling
-    pytest.param(101, 1.1, 10, 10, 100, 10, 0.1, 1.1, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
+    pytest.param(101, 1.1, 10, 10, 100, 10, 0.1, 0, 1.1, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
 ]
 
 TEXT_ARGS_MOMENTUM: Final = (
-    "step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum, expected"
+    "step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum, peak_steps, expected"
 )
 TEST_CASES_MOMENTUM: Final = [
     # Start at momentum=0.95
-    (0, 0.85, 10, 10, 100, 10, 0.95, 0.95),
+    (0, 0.85, 10, 10, 100, 10, 0.95, 0, 0.95),
     # Linear decrease to base_momentum over warmup_steps
-    (5, 0.85, 10, 10, 100, 10, 0.95, 0.9),
-    (10, 0.85, 10, 10, 100, 10, 0.95, 0.85),
+    (5, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9),
+    (10, 0.85, 10, 10, 100, 10, 0.95, 0, 0.85),
+    # Stay at max momentum for nonzero peak_steps
+    (10, 0.85, 10, 10, 100, 10, 0.95, 20, 0.85),
+    (15, 0.85, 10, 10, 100, 10, 0.95, 20, 0.85),
+    (30, 0.85, 10, 10, 100, 10, 0.95, 20, 0.85),
+    (31, 0.85, 10, 10, 100, 10, 0.95, 20, 0.8547),
     # Reciprocal square root schedule
-    (11, 0.85, 10, 10, 100, 10, 0.95, 0.8547),
-    (15, 0.85, 10, 10, 100, 10, 0.95, 0.8684),
-    (50, 0.85, 10, 10, 100, 10, 0.95, 0.9053),
-    (75, 0.85, 10, 10, 100, 10, 0.95, 0.9135),
-    (89, 0.85, 10, 10, 100, 10, 0.95, 0.9165),
-    (int(1e20) - 11, 0.85, 10, 10, int(1e20), 10, 0.95, 0.95),
+    (11, 0.85, 10, 10, 100, 10, 0.95, 0, 0.8547),
+    (15, 0.85, 10, 10, 100, 10, 0.95, 0, 0.8684),
+    (50, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9053),
+    (75, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9135),
+    (89, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9165),
+    (int(1e20) - 11, 0.85, 10, 10, int(1e20), 10, 0.95, 0, 0.95),
     # Linear decrease to lr=0.0 over cooldown_steps
-    (90, 0.85, 10, 10, 100, 10, 0.95, 0.9167),
-    (95, 0.85, 10, 10, 100, 10, 0.95, 0.9333),
-    (100, 0.85, 10, 10, 100, 10, 0.95, 0.95),
+    (90, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9167),
+    (95, 0.85, 10, 10, 100, 10, 0.95, 0, 0.9333),
+    (100, 0.85, 10, 10, 100, 10, 0.95, 0, 0.95),
     # Very small timescale, asymptote to initial_momentum
-    (19000, 0.85, 10, 10, 20000, 1, 0.95, 0.9493),
-    (19000, 0.95, 10, 10, 20000, 1, 1.0, 0.9996),
+    (19000, 0.85, 10, 10, 20000, 1, 0.95, 0, 0.9493),
+    (19000, 0.95, 10, 10, 20000, 1, 1.0, 0, 0.9996),
     # Error handling
-    pytest.param(101, 0.85, 10, 10, 100, 10, 0.95, 0.95, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
+    pytest.param(101, 0.85, 10, 10, 100, 10, 0.95, 0, 0.95, marks=pytest.mark.xfail(raises=ValueError, strict=True)),
 ]
 
 
 @pytest.mark.parametrize(TEXT_ARGS, TEST_CASES)
-def test_get_lr(step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, expected):
-    actual = get_lr(step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr)
+def test_get_lr(step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, peak_steps, expected):
+    actual = get_lr(step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, peak_steps)
     assert isclose(actual, expected, abs_tol=1e-4)
 
 
 @pytest.mark.parametrize(TEXT_ARGS_MOMENTUM, TEST_CASES_MOMENTUM)
 def test_get_momentum(
-    step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum, expected
+    step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum, peak_steps, expected
 ):
-    actual = get_momentum(step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum)
+    actual = get_momentum(
+        step, base_momentum, warmup_steps, cooldown_steps, total_steps, timescale, initial_momentum, peak_steps
+    )
     assert isclose(actual, expected, abs_tol=1e-4)
 
 
 class TestReciprocalSquareRootLR:
 
     @pytest.mark.parametrize(TEXT_ARGS, TEST_CASES)
-    def test_get_lr(self, step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, expected):
+    def test_get_lr(
+        self, step, base_lr, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, peak_steps, expected
+    ):
         optim = Adam([nn.Parameter(torch.zeros(1))], lr=base_lr)
-        schedule = ReciprocalSquareRootLR(optim, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr)
+        schedule = ReciprocalSquareRootLR(
+            optim, warmup_steps, cooldown_steps, total_steps, timescale, initial_lr, peak_steps=peak_steps
+        )
         schedule._step_count = step
         actual = schedule.get_lr()[0]
         assert isclose(actual, expected, abs_tol=1e-4)
@@ -107,6 +125,7 @@ class TestReciprocalSquareRootLR:
         total_steps,
         timescale,
         initial_momentum,
+        peak_steps,
         expected,
     ):
         # Update optimizer to account for change in base momentum
@@ -123,7 +142,7 @@ class TestReciprocalSquareRootLR:
                     param_group["base_momentum"] = base_momentum
 
         schedule = ReciprocalSquareRootLR(
-            optimizer, warmup_steps, cooldown_steps, total_steps, timescale, 0, initial_momentum
+            optimizer, warmup_steps, cooldown_steps, total_steps, timescale, 0, initial_momentum, peak_steps=peak_steps
         )
         schedule._step_count = step
         schedule.get_lr()
