@@ -38,6 +38,10 @@ def get_lr(
         assert initial_lr <= base_lr
         return initial_lr + (base_lr - initial_lr) * step / warmup_steps
 
+    # Peak is constant at base_lr over peak_steps
+    if step <= warmup_steps + peak_steps:
+        return base_lr
+
     # Find point along the reciprocal square root schedule
     rsqrt_step = min(step, total_steps - cooldown_steps - peak_steps)
     lr = base_lr * (timescale / (rsqrt_step - (warmup_steps + peak_steps - timescale))) ** 0.5
@@ -88,6 +92,10 @@ def get_momentum(
     if step <= warmup_steps:
         assert initial_momentum >= base_momentum
         return initial_momentum - (initial_momentum - base_momentum) * step / warmup_steps
+
+    # Peak is constant at base_momentum over peak_steps
+    if step <= warmup_steps + peak_steps:
+        return base_momentum
 
     # Find point along the reciprocal square root schedule
     rsqrt_step = min(step, total_steps - cooldown_steps - peak_steps)
