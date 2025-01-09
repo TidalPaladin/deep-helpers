@@ -43,7 +43,7 @@ def get_lr(
         return base_lr
 
     # Find point along the reciprocal square root schedule
-    rsqrt_step = min(step, total_steps - cooldown_steps - peak_steps)
+    rsqrt_step = min(step, total_steps - cooldown_steps)
     lr = base_lr * (timescale / (rsqrt_step - (warmup_steps + peak_steps - timescale))) ** 0.5
 
     # Cooldown is linear from current lr to 0 over cooldown_steps
@@ -98,7 +98,7 @@ def get_momentum(
         return base_momentum
 
     # Find point along the reciprocal square root schedule
-    rsqrt_step = min(step, total_steps - cooldown_steps - peak_steps)
+    rsqrt_step = min(step, total_steps - cooldown_steps)
     rsqrt = (timescale / (rsqrt_step - (warmup_steps + peak_steps - timescale))) ** 0.5
     momentum = initial_momentum - (initial_momentum - base_momentum) * rsqrt
 
