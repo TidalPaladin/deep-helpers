@@ -319,7 +319,6 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         self.run_logging_loop(self.state, output, batch_idx, metrics)
         return output
 
-    @torch.inference_mode()
     def validation_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
         assert self.state.mode == Mode.VAL
         metrics = self.metrics.get(self.state)
@@ -335,7 +334,6 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         self.run_logging_loop(self.state, output, batch_idx, metrics)
         return output
 
-    @torch.inference_mode()
     def test_step(self, batch: I, batch_idx: int, *args, **kwargs) -> O:
         assert self.state.mode == Mode.TEST
         metrics = self.metrics.get(self.state)
