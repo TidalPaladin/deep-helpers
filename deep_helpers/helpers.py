@@ -37,7 +37,9 @@ def load_checkpoint(model: nn.Module, state_dict: Dict[str, Any], strict: bool =
     else:
         model_state_dict = model.state_dict()
         checkpoint_state_dict = {
-            k: v for k, v in state_dict.items() if k in model_state_dict and v.shape == model_state_dict[k].shape
+            k: v
+            for k, v in state_dict.items()
+            if k in model_state_dict and (not isinstance(v, Tensor) or v.shape == model_state_dict[k].shape)
         }
         model.load_state_dict(checkpoint_state_dict, strict=False)
 
