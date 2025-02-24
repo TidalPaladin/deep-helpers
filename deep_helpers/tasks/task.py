@@ -213,7 +213,9 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         metrics: Optional[tm.MetricCollection] = None,
         add_dataloader_idx: bool = False,
     ) -> None:
-        is_logging_global_step = (self.global_step + 1) % self.attached_task.log_train_metrics_interval == 0
+        log_interval = self.attached_task.log_train_metrics_interval
+        assert isinstance(log_interval, int)
+        is_logging_global_step = (self.global_step + 1) % log_interval == 0
         # NOTE: When using accumulate_grad_batches, global step only increments every `accumulate_grad_batches` steps.
         # If this is not accounted for, we will compute log and reset a metric `accumulate_grad_batches` times per global step.
         # This will clear the metric state that may have been updated over `log_train_metrics_interval` batches.
@@ -272,8 +274,8 @@ class Task(StateMixin, pl.LightningModule, Generic[I, O], ABC):
         )
 
         if metrics_to_log:
-            on_step = not self.attached_task.log_train_metrics_on_epoch
-            on_epoch = self.attached_task.log_train_metrics_on_epoch
+            on_epoch = bool(self.attached_task.log_train_metrics_on_epoch)
+            on_step = not on_epoch
             self.attached_task.log_dict(
                 metrics_to_log, on_step=on_step, on_epoch=on_epoch, prog_bar=False, sync_dist=False, **kwargs
             )
