@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterator, List, Tuple, cast
 import torch
 import torch.nn as nn
 from safetensors import safe_open
-from safetensors.torch import save_file, save_model
+from safetensors.torch import save, save_file, save_model
 from torch import Tensor
 
 
@@ -112,8 +112,14 @@ def convert_to_safetensors(
         def state_dict(self) -> Dict[str, Tensor]:
             return self._state_dict
 
-    model = DummyModel(state_dict)
-    save_model(model, str(dest))
+    try:
+        model = DummyModel(state_dict)
+        save_model(model, str(dest))
+    except Exception:
+        # Fall back to manual saving, which may produce duplicate tensors.
+        with open(dest, "wb") as f:
+            _bytes = save(state_dict)
+            f.write(_bytes)
 
 
 def summarize(target: Path | Iterator[Tuple[str, Tensor]]) -> str:
